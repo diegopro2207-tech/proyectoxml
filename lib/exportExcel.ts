@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { AnalyzedInvoice } from '@/types/invoice';
+import { formatDateDMY, formatNumber } from './formatting';
 
 // Definición de columnas del Excel.
 // `header` es el título visible. `format` permite transformar el valor antes
@@ -15,12 +16,16 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'archivo', header: 'Archivo', width: 30 },
   { key: 'tipoDTE', header: 'TipoDTE' },
   { key: 'folioFactura', header: 'FolioFactura' },
-  { key: 'fechaEmision', header: 'FechaEmision' },
+  {
+    key: 'fechaEmision',
+    header: 'FechaEmision',
+    format: (r) => formatDateDMY(r.fechaEmision),
+  },
   { key: 'rutEmisor', header: 'RUTEmisor' },
   { key: 'razonSocialEmisor', header: 'RazonSocialEmisor', width: 35 },
-  { key: 'montoNeto', header: 'MontoNeto' },
-  { key: 'iva', header: 'IVA' },
-  { key: 'montoTotal', header: 'MontoTotal' },
+  { key: 'montoNeto', header: 'MontoNeto', format: (r) => formatNumber(r.montoNeto) },
+  { key: 'iva', header: 'IVA', format: (r) => formatNumber(r.iva) },
+  { key: 'montoTotal', header: 'MontoTotal', format: (r) => formatNumber(r.montoTotal) },
   { key: 'folioRefOriginal', header: 'Numero de OC', width: 30 },
   { key: 'motivoOriginal', header: 'MotivoOriginal', width: 50 },
   { key: 'descripcionItemsOriginal', header: 'Glosas Items', width: 60 },

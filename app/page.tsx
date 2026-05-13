@@ -21,23 +21,47 @@ export default function HomePage() {
 
   async function handleFiles(files: File[]) {
     setProcessing(true);
-    setStatus(`Procesando ${files.length} archivo(s)...`);
+    setStatus(`Iniciando procesamiento de ${files.length} archivo(s)...`);
 
     const newRows: AnalyzedInvoice[] = [];
     const newErrors: FileError[] = [];
+    const BATCH_SIZE = 100;
 
-    for (const file of files) {
-      try {
-        const text = await readXmlFile(file);
-        const payload = parseInvoiceXml(text, file.name);
-        const analyzed = analyzeInvoice(payload);
-        newRows.push(analyzed);
-      } catch (err) {
-        newErrors.push({
-          archivo: file.name,
-          error: err instanceof Error ? err.message : 'Error desconocido',
-        });
+    // Procesar en lotes para no bloquear el UI.
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const processed = i + batch.length;
+      setStatus(`Procesando ${processed} de ${files.length}...`);
+
+      const batchResults = await Promise.all(
+        batch.map(async (file) => {
+          try {
+            const text = await readXmlFile(file);
+            const payload = parseInvoiceXml(text, file.name);
+            const analyzed = analyzeInvoice(payload);
+            return { success: true as const, data: analyzed };
+          } catch (err) {
+            return {
+              success: false as const,
+              error: {
+                archivo: file.name,
+                error: err instanceof Error ? err.message : 'Error desconocido',
+              },
+            };
+          }
+        })
+      );
+
+      for (const result of batchResults) {
+        if (result.success) {
+          newRows.push(result.data);
+        } else {
+          newErrors.push(result.error);
+        }
       }
+
+      // Actualizar estado en tiempo real para que el usuario vea progreso.
+      setRows((prev) => [...prev, ...newRows.slice(prev.length)]);
     }
 
     setRows((prev) => [...prev, ...newRows]);

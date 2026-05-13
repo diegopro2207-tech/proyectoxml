@@ -47,13 +47,18 @@ export default function UploadZone({ onFilesSelected, disabled }: Props) {
         type="file"
         accept=".xml,application/xml,text/xml"
         multiple
+        // @ts-ignore — webkitdirectory no está en tipos estándar pero es soportado
+        webkitdirectory
+        mozdirectory="true"
         hidden
         onChange={(e) => handleFiles(e.target.files)}
       />
       <div className="upload-inner">
-        <strong>Arrastra aquí tus XML</strong>
-        <span>o haz clic para seleccionar varios archivos</span>
-        <small>Solo archivos .xml — procesamiento local</small>
+        <strong>Arrastra aquí carpetas o archivos XML</strong>
+        <span>
+          o haz clic para seleccionar. Puedes subir hasta 9.000+ archivos
+        </span>
+        <small>Solo archivos .xml — procesamiento local, datos nunca suben a internet</small>
       </div>
     </div>
   );
