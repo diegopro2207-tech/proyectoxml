@@ -30,8 +30,7 @@ export default function HomePage() {
     // Procesar en lotes para no bloquear el UI.
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
-      const processed = i + batch.length;
-      setStatus(`Procesando ${processed} de ${files.length}...`);
+      setStatus(`Procesando ${Math.min(i + BATCH_SIZE, files.length)} de ${files.length}...`);
 
       const batchResults = await Promise.all(
         batch.map(async (file) => {
@@ -53,17 +52,12 @@ export default function HomePage() {
       );
 
       for (const result of batchResults) {
-        if (result.success) {
-          newRows.push(result.data);
-        } else {
-          newErrors.push(result.error);
-        }
+        if (result.success) newRows.push(result.data);
+        else newErrors.push(result.error);
       }
-
-      // Actualizar estado en tiempo real para que el usuario vea progreso.
-      setRows((prev) => [...prev, ...newRows.slice(prev.length)]);
     }
 
+    // Una sola actualización al final — sin duplicados.
     setRows((prev) => [...prev, ...newRows]);
     setErrors((prev) => [...prev, ...newErrors]);
     setStatus(
