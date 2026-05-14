@@ -123,6 +123,12 @@ function collectReferenceTexts(referencias: any[]): {
   return { folioRef, razonRef };
 }
 
+// Elimina prefijos del tipo "AUTO@", "A@" que algunos sistemas emisores
+// anteponen al texto del ítem (ej: "AUTO@Facturación de garantías...").
+function stripSystemPrefix(text: string): string {
+  return text.replace(/^[A-Za-z]{1,6}@/, '').trim();
+}
+
 function collectDetalleTexts(detalles: any[]): {
   nmbItem: string[];
   dscItem: string[];
@@ -136,8 +142,8 @@ function collectDetalleTexts(detalles: any[]): {
   const dscItem: string[] = [];
   const perItem: string[] = [];
   for (const det of detalles) {
-    const n = toStr(det?.NmbItem);
-    const d = toStr(det?.DscItem);
+    const n = stripSystemPrefix(toStr(det?.NmbItem));
+    const d = stripSystemPrefix(toStr(det?.DscItem));
     if (n) nmbItem.push(n);
     if (d) dscItem.push(d);
     const combined = [n, d].filter(Boolean).join(' — ');

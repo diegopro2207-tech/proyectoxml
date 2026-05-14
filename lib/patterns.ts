@@ -1,20 +1,42 @@
 // Regex patterns para detectar NFolio, VIN, propuestas y limpiar motivos.
-// Centralizado aquí para facilitar mantenimiento y futura sustitución por IA.
 //
 // Notas de diseño:
-// - Se PRESERVAN ceros a la izquierda en NFolio (ej: "0025979" no "25979"),
-//   porque ese código es un identificador interno y los ceros son significativos.
-// - El character class incluye � como fallback por si llega un XML con
-//   encoding corrupto donde "°" se transformó en "�" (caracter de reemplazo).
-//   La capa de lectura debería evitar esto, pero la regex tolerante es
-//   defensa en profundidad.
+// - Se normalizan los textos antes de buscar (strip de acentos, mayúsculas).
+//   Esto permite matchear "PROPOSICIÓN" y "PROPOSICION" con la misma regex.
+// - Se soportan números con punto como separador de miles: "26.620" → "26620".
+// - Los ceros a la izquierda se preservan.
+// - El char ° (grado) y º (ordinal) se tratan igual.
 
 export const VIN_REGEX = /\b[A-HJ-NPR-Z0-9]{17}\b/g;
 
-// Caracteres válidos después de "N" para indicar "Número": °, º, o, �.
-const NUM_PREFIX_CHARS = '°ºo\\uFFFD';
+// ─── Normalización ───────────────────────────────────────────────────────────
 
-// Keywords que sugieren una "propuesta administrativa".
+// Quita acentos (NFD + strip combinators) y convierte a mayúsculas.
+// También elimina prefijos del tipo "AUTO@", "A@" que usan algunos emisores.
+// El resultado es ASCII plano, apto para regex simples.
+export function normalizeForSearch(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // quitar diacríticos (´ ` ~ ^ ¨)
+    .replace(/[^\x00-\x7F]/g, ' ')  // reemplazar no-ASCII restantes (ej: Ñ→N ya hecho arriba, pero por si acaso)
+    .toUpperCase()
+    .replace(/^[A-Z]+@/gm, ' ')     // limpiar prefijos "AUTO@", "A@" al inicio de línea
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Normaliza un número capturado: quita puntos de separación de miles.
+// "26.620" → "26620"   "1.234.567" → "1234567"   "0025979" → "0025979"
+export function normalizeNFolio(raw: string): string {
+  if (!raw) return '';
+  // Quitar puntos que actúan como separadores de miles.
+  // No tocamos ceros a la izquierda ni otros caracteres.
+  return raw.replace(/\./g, '').trim();
+}
+
+// ─── Keywords ────────────────────────────────────────────────────────────────
+
 export const PROPUESTA_KEYWORDS = [
   'PROPOSICION',
   'PROPUESTA',
@@ -26,74 +48,84 @@ export const PROPUESTA_KEYWORDS = [
   'OT',
   'BONO',
   'APORTE',
-  'CAMPAÑA',
-  'CAMPANA',
+  'CAMPANA',    // CAMPAÑA normalizada
+  'FACTURA',    // para "PROPOSICION DE FACTURA"
 ];
 
-// Patrones tipo "N° 12345", "Nº 12345", "NRO 12345", "No. 12345", "#12345".
-// Capturan el número COMPLETO (con ceros a la izquierda).
+// ─── Patrones de número ──────────────────────────────────────────────────────
+// IMPORTANTE: estos patrones se aplican sobre texto YA NORMALIZADO.
+// "°" y "º" sobreviven a normalizeForSearch (no son diacríticos combinados).
+// El caracter de reemplazo � queda como defensa adicional.
+
+const NUM_CHARS = '°ºo\\uFFFD';
+
+// Capturan números como: 26.620 / 0025979 / 1.234.567
+// El grupo capturado puede tener puntos; usar normalizeNFolio() después.
 export const NUMERO_PATTERNS: RegExp[] = [
-  new RegExp(`N[${NUM_PREFIX_CHARS}]\\.?\\s*(\\d{3,10})`, 'i'),
-  /\bNRO\.?\s*(\d{3,10})/i,
-  /#\s*(\d{3,10})/,
+  // N° 26.620 / Nº 26.620 / No 26.620 / No. 26.620
+  new RegExp(`N[${NUM_CHARS}]\\.?\\s*([\\d][\\d.]{1,14})`, 'i'),
+  // NRO. 26.620 / NRO 26620
+  /\bNRO\.?\s*([\d][\d.]{1,14})/i,
+  // #26.620 / # 26620
+  /#\s*([\d][\d.]{1,14})/,
 ];
 
-// Patrones tipo "PROP 12345", "PROPUESTA 12345", "GARANTIA 12345", "OC 12345".
 export const KEYWORD_NUMERO_PATTERNS: RegExp[] = [
-  /\bPROPOSICION\s+(?:DE\s+\w+\s+)*\s*(\d{3,10})\b/i,
-  /\bPROPUESTA\s+(\d{3,10})\b/i,
-  /\bPROP\.?\s+(\d{3,10})\b/i,
-  /\bCOTIZACION\s+(\d{3,10})\b/i,
-  /\bGARANTIA\s+(\d{3,10})\b/i,
-  /\bORDEN\s+DE\s+COMPRA\s+(\d{3,10})\b/i,
-  /\bOC\.?\s+(\d{3,10})\b/i,
-  /\bOT\.?\s+(\d{3,10})\b/i,
-  /\bBONO\s+(\d{3,10})\b/i,
-  /\bAPORTE\s+(\d{3,10})\b/i,
-  /\bCAMPA(?:Ñ|N)A\s+(\d{3,10})\b/i,
+  /\bPROPOSICION\s+(?:DE\s+\w+\s+)*\s*([\d][\d.]{1,14})\b/i,
+  /\bPROPUESTA\s+([\d][\d.]{1,14})\b/i,
+  /\bPROP\.?\s+([\d][\d.]{1,14})\b/i,
+  /\bCOTIZACION\s+([\d][\d.]{1,14})\b/i,
+  /\bGARANTIA\s+([\d][\d.]{1,14})\b/i,
+  /\bORDEN\s+DE\s+COMPRA\s+([\d][\d.]{1,14})\b/i,
+  /\bOC\.?\s+([\d][\d.]{1,14})\b/i,
+  /\bOT\.?\s+([\d][\d.]{1,14})\b/i,
+  /\bBONO\s+([\d][\d.]{1,14})\b/i,
+  /\bAPORTE\s+([\d][\d.]{1,14})\b/i,
+  /\bCAMPANA\s+([\d][\d.]{1,14})\b/i,
 ];
 
-// Patrones que deben ser eliminados de RazonRef para producir MotivoLimpio.
+// Patrones de limpieza para MotivoLimpio.
+// También operan sobre texto normalizado.
 export const CLEANUP_PATTERNS: RegExp[] = [
-  new RegExp(`N[${NUM_PREFIX_CHARS}]\\.?\\s*\\d{3,10}`, 'gi'),
-  /\bNRO\.?\s*\d{3,10}/gi,
-  /#\s*\d{3,10}/g,
+  new RegExp(`N[${NUM_CHARS}]\\.?\\s*[\\d][\\d.]{1,14}`, 'gi'),
+  /\bNRO\.?\s*[\d][\d.]{1,14}/gi,
+  /#\s*[\d][\d.]{1,14}/g,
   /\bFECHA\b[^.\n]*/gi,
   /\bFEC\.?\b[^.\n]*/gi,
 ];
 
-// Indica si un texto luce como un placeholder/genérico sin número.
+// ─── Funciones de detección ──────────────────────────────────────────────────
+
 export function looksGeneric(text: string): boolean {
   if (!text) return false;
-  const trimmed = text.trim();
+  const trimmed = normalizeForSearch(text);
   if (!trimmed) return false;
   if (/\d{3,}/.test(trimmed)) return false;
-  const upper = trimmed.toUpperCase();
-  return PROPUESTA_KEYWORDS.some((kw) => upper.includes(kw));
+  return PROPUESTA_KEYWORDS.some((kw) => trimmed.includes(kw));
 }
 
-// Detecta si un texto contiene alguna palabra de propuesta.
 export function detectPropuestaKeyword(text: string): string {
   if (!text) return '';
-  const upper = text.toUpperCase();
+  const upper = normalizeForSearch(text);
   for (const kw of PROPUESTA_KEYWORDS) {
     if (upper.includes(kw)) {
-      // Devolver el texto hasta el "N°" (o N�/NRO/#) si existe.
+      // Extraer texto original (con acentos) antes del primer N°/NRO/#
       const splitRegex = new RegExp(
-        `N[${NUM_PREFIX_CHARS}]\\.?|NRO\\.?|#`,
+        `N[${NUM_CHARS}]\\.?|NRO\\.?|#`,
         'i'
       );
       const beforeNum = text.split(splitRegex)[0].trim();
-      return beforeNum || kw;
+      // Limpiar "AUTO@" u otros prefijos de sistema antes de devolver.
+      return beforeNum.replace(/^[A-Za-z]+@/, '').trim() || kw;
     }
   }
   return '';
 }
 
-// Busca todos los candidatos a NFolio en un texto.
-// Retorna lista de números preservando ceros a la izquierda.
 export function findNFolioCandidates(text: string): string[] {
   if (!text) return [];
+  // Normalizar para que "PROPOSICIÓN" → "PROPOSICION", "N°" queda igual.
+  const normalized = normalizeForSearch(text);
   const found: string[] = [];
 
   const allPatterns = [...NUMERO_PATTERNS, ...KEYWORD_NUMERO_PATTERNS];
@@ -103,9 +135,12 @@ export function findNFolioCandidates(text: string): string[] {
       re.flags.includes('g') ? re.flags : re.flags + 'g'
     );
     let m: RegExpExecArray | null;
-    while ((m = globalRe.exec(text)) !== null) {
-      if (m[1]) found.push(m[1]);
-      // Protección contra loops si el regex matchea string vacío.
+    while ((m = globalRe.exec(normalized)) !== null) {
+      if (m[1]) {
+        const clean = normalizeNFolio(m[1]);
+        // Filtrar capturas con menos de 3 dígitos (demasiado corto para ser NFolio).
+        if (/\d{3,}/.test(clean)) found.push(clean);
+      }
       if (m.index === globalRe.lastIndex) globalRe.lastIndex++;
     }
   }
@@ -113,28 +148,26 @@ export function findNFolioCandidates(text: string): string[] {
   return Array.from(new Set(found));
 }
 
-// Limpia el motivo: elimina los patrones de número y de fecha.
 export function cleanMotivo(text: string): string {
   if (!text) return '';
-  let out = text;
+  // Limpiar prefijos de sistema antes de mostrar.
+  let out = text.replace(/^[A-Za-z]+@/gm, '').trim();
   for (const re of CLEANUP_PATTERNS) {
     out = out.replace(re, ' ');
   }
-  return out.replace(/\s{2,}/g, ' ').trim().replace(/[-,;:]+$/, '').trim();
+  return out.replace(/\s{2,}/g, ' ').trim().replace(/[-,;:.]+$/, '').trim();
 }
 
-// Extrae VIN de un texto si existe.
 export function findVIN(text: string): string {
   if (!text) return '';
   const matches = text.match(VIN_REGEX);
   if (!matches) return '';
-  // Filtrar falsos positivos: VIN no debería ser solo dígitos.
   const valid = matches.filter((v) => /[A-Z]/i.test(v) && /\d/.test(v));
   return valid[0] || '';
 }
 
-// Detecta si el texto contiene "CustomerCare", "Customer Care", "Care" o
-// variantes. Usamos \b para evitar matchear "carecer", "carencia", etc.
+// ─── CustomerCare ────────────────────────────────────────────────────────────
+
 const CUSTOMER_CARE_REGEX = /customer\s*-?\s*care|\bcare\b/i;
 
 export function detectCustomerCare(text: string): boolean {
