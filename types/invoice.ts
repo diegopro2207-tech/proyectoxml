@@ -19,7 +19,9 @@ export interface AnalyzedInvoice extends RawInvoiceData {
   nFolioDetectado: string;
   motivoLimpio: string;
   propuestaDetectada: string;
-  vinDetectado: string;
+  // Lista de TODOS los VIN detectados en el archivo, deduplicados.
+  // Para display se concatenan como "VIN xxx | VIN yyy".
+  vinDetectado: string[];
   customerCare: string; // "Sí" si se detecta CustomerCare/Care en glosas, "" si no.
   observacion: string;
   confianza: number;
@@ -37,7 +39,7 @@ export interface DetectionResult {
   source: DetectionSource;
   propuesta: string;
   motivoLimpio: string;
-  vin: string;
+  vins: string[];
   candidates: string[];
   folioRefLooksGeneric: boolean;
 }

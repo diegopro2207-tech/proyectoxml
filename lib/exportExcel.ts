@@ -46,7 +46,12 @@ export const COLUMNS: ColumnDef[] = [
   {
     key: 'vinDetectado',
     header: 'VIN',
-    format: (r) => (r.vinDetectado ? `VIN ${r.vinDetectado}` : ''),
+    width: 25,
+    // Si hay 1 o más VINs, devolver "VIN xxx | VIN yyy | ...".
+    format: (r) =>
+      r.vinDetectado.length > 0
+        ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
+        : '',
   },
   { key: 'customerCare', header: 'CustomerCare' },
   { key: 'observacion', header: 'Observacion', width: 40 },

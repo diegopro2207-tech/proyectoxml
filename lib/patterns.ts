@@ -191,12 +191,24 @@ export function cleanMotivo(text: string): string {
   return out.replace(/\s{2,}/g, ' ').trim().replace(/[-,;:.]+$/, '').trim();
 }
 
+// Devuelve TODOS los VINs encontrados en el texto, deduplicados.
+// Un VIN válido tiene letras Y dígitos (no solo dígitos, no solo letras).
+export function findAllVINs(text: string): string[] {
+  if (!text) return [];
+  // Convertir a mayúsculas porque algunos emisores los escriben en minúsculas
+  // (raro, pero por defensa).
+  const upper = text.toUpperCase();
+  const matches = upper.match(VIN_REGEX);
+  if (!matches) return [];
+  const valid = matches.filter((v) => /[A-Z]/.test(v) && /\d/.test(v));
+  return Array.from(new Set(valid));
+}
+
+// Compat: mantiene la firma vieja por si algún caller la usa.
+// Retorna el primer VIN o vacío.
 export function findVIN(text: string): string {
-  if (!text) return '';
-  const matches = text.match(VIN_REGEX);
-  if (!matches) return '';
-  const valid = matches.filter((v) => /[A-Z]/i.test(v) && /\d/.test(v));
-  return valid[0] || '';
+  const all = findAllVINs(text);
+  return all[0] || '';
 }
 
 // ─── CustomerCare ────────────────────────────────────────────────────────────

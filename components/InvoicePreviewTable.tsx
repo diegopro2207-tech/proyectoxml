@@ -45,7 +45,10 @@ const COLS: ColDef[] = [
   {
     key: 'vinDetectado',
     label: 'VIN',
-    format: (r) => (r.vinDetectado ? `VIN ${r.vinDetectado}` : ''),
+    format: (r) =>
+      r.vinDetectado.length > 0
+        ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
+        : '',
   },
   { key: 'customerCare', label: 'CustomerCare' },
   { key: 'observacion', label: 'Observacion' },

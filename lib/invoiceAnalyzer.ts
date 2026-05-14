@@ -9,8 +9,8 @@ import {
   cleanMotivo,
   detectCustomerCare,
   detectPropuestaKeyword,
+  findAllVINs,
   findNFolioCandidates,
-  findVIN,
   looksGeneric,
 } from './patterns';
 
@@ -73,7 +73,7 @@ export function detectFromSources(
     .filter(Boolean)
     .join(' | ');
 
-  const vin = findVIN(combined);
+  const vins = findAllVINs(combined);
 
   // MotivoLimpio: priorizar RazonRef como base; si está vacío, usar FolioRef.
   const motivoBase = fuentes.razonRef || fuentes.folioRef || '';
@@ -96,7 +96,7 @@ export function detectFromSources(
     source: chosenSource,
     propuesta,
     motivoLimpio,
-    vin,
+    vins,
     candidates: Array.from(new Set(allCandidates)),
     folioRefLooksGeneric,
   };
@@ -125,7 +125,13 @@ function buildObservacion(
     obs.push('NFolio no detectado');
   }
 
-  if (det.vin) obs.push('VIN detectado en descripción');
+  if (det.vins.length > 0) {
+    obs.push(
+      det.vins.length === 1
+        ? 'VIN detectado en descripción'
+        : `${det.vins.length} VINs detectados en descripción`
+    );
+  }
 
   if (det.folioRefLooksGeneric && det.source !== 'FolioRef') {
     obs.push('FolioRef parece incompleto o genérico');
@@ -160,7 +166,7 @@ function computeConfianza(
   if (det.candidates.length > 1) score -= 0.2;
   if (det.folioRefLooksGeneric && det.source !== 'FolioRef') score -= 0.05;
   if (encodingSospechoso) score -= 0.1;
-  if (det.vin) score += 0.02;
+  if (det.vins.length > 0) score += 0.02;
 
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
@@ -190,7 +196,7 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
     nFolioDetectado: det.nFolio,
     motivoLimpio: det.motivoLimpio,
     propuestaDetectada: det.propuesta,
-    vinDetectado: det.vin,
+    vinDetectado: det.vins,
     customerCare,
     observacion,
     confianza,

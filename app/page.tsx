@@ -83,7 +83,7 @@ export default function HomePage() {
   const stats = useMemo(() => {
     const total = rows.length;
     const conNFolio = rows.filter((r) => r.nFolioDetectado).length;
-    const conVIN = rows.filter((r) => r.vinDetectado).length;
+    const conVIN = rows.filter((r) => r.vinDetectado.length > 0).length;
     const revisar = rows.filter((r) => r.observacion.includes('Revisar')).length;
     return { total, conNFolio, conVIN, revisar };
   }, [rows]);
