@@ -12,16 +12,18 @@ export const VIN_REGEX = /\b[A-HJ-NPR-Z0-9]{17}\b/g;
 // ─── Normalización ───────────────────────────────────────────────────────────
 
 // Quita acentos (NFD + strip combinators) y convierte a mayúsculas.
+// IMPORTANTE: preserva ° y º porque son significativos para los patrones de
+// número (ej: "N° 26.620"). El bug anterior los borraba como "no-ASCII".
 // También elimina prefijos del tipo "AUTO@", "A@" que usan algunos emisores.
-// El resultado es ASCII plano, apto para regex simples.
 export function normalizeForSearch(text: string): string {
   if (!text) return '';
   return text
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // quitar diacríticos (´ ` ~ ^ ¨)
-    .replace(/[^\x00-\x7F]/g, ' ')  // reemplazar no-ASCII restantes (ej: Ñ→N ya hecho arriba, pero por si acaso)
+    .replace(/[̀-ͯ]/g, '')      // quitar diacríticos combinantes
+    .replace(/�/g, '°')              // si quedó un � de mala decodificación, asumir que era °
     .toUpperCase()
-    .replace(/^[A-Z]+@/gm, ' ')     // limpiar prefijos "AUTO@", "A@" al inicio de línea
+    .replace(/[^\x00-\x7F°º]/g, ' ')      // quitar otros no-ASCII PERO preservar ° y º
+    .replace(/^[A-Z]+@/gm, ' ')           // limpiar prefijos "AUTO@", "A@"
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -59,15 +61,28 @@ export const PROPUESTA_KEYWORDS = [
 
 const NUM_CHARS = '°ºo\\uFFFD';
 
+// "N°", "N-°", "N °", "Nº", "N o", "No.", "No ".
+// Permitimos guion o espacio entre N y el siguiente char.
+const N_PREFIX = `N[\\s\\-]?[${NUM_CHARS}]\\.?`;
+
 // Capturan números como: 26.620 / 0025979 / 1.234.567
 // El grupo capturado puede tener puntos; usar normalizeNFolio() después.
 export const NUMERO_PATTERNS: RegExp[] = [
-  // N° 26.620 / Nº 26.620 / No 26.620 / No. 26.620
-  new RegExp(`N[${NUM_CHARS}]\\.?\\s*([\\d][\\d.]{1,14})`, 'i'),
+  // N° 26.620 / N-° 26.620 / Nº 26.620 / No. 26.620
+  new RegExp(`${N_PREFIX}\\s*([\\d][\\d.]{1,14})`, 'i'),
   // NRO. 26.620 / NRO 26620
   /\bNRO\.?\s*([\d][\d.]{1,14})/i,
   // #26.620 / # 26620
   /#\s*([\d][\d.]{1,14})/,
+];
+
+// Patrones para folios ALFANUMÉRICOS (tipo BVN100012P0326).
+// Conservadores: requieren un marcador claro como "N° FOLIO" o "FOLIO" tras
+// un encabezado. Sin marcador no detectamos: ahí no hay forma de distinguir
+// el folio de ruido.
+export const FOLIO_ALFANUM_PATTERNS: RegExp[] = [
+  // "N° FOLIO BVN100012P0326", "N-° FOLIO BVN..."
+  new RegExp(`${N_PREFIX}\\s*FOLIO\\s+([A-Z][A-Z0-9]{4,20})`, 'i'),
 ];
 
 export const KEYWORD_NUMERO_PATTERNS: RegExp[] = [
@@ -85,9 +100,10 @@ export const KEYWORD_NUMERO_PATTERNS: RegExp[] = [
 ];
 
 // Patrones de limpieza para MotivoLimpio.
-// También operan sobre texto normalizado.
+// El más específico (con FOLIO alfanumérico) va primero.
 export const CLEANUP_PATTERNS: RegExp[] = [
-  new RegExp(`N[${NUM_CHARS}]\\.?\\s*[\\d][\\d.]{1,14}`, 'gi'),
+  new RegExp(`${N_PREFIX}\\s*FOLIO\\s+[A-Z][A-Z0-9]{4,20}`, 'gi'),
+  new RegExp(`${N_PREFIX}\\s*[\\d][\\d.]{1,14}`, 'gi'),
   /\bNRO\.?\s*[\d][\d.]{1,14}/gi,
   /#\s*[\d][\d.]{1,14}/g,
   /\bFECHA\b[^.\n]*/gi,
@@ -128,7 +144,14 @@ export function findNFolioCandidates(text: string): string[] {
   const normalized = normalizeForSearch(text);
   const found: string[] = [];
 
-  const allPatterns = [...NUMERO_PATTERNS, ...KEYWORD_NUMERO_PATTERNS];
+  // Probamos alfanuméricos PRIMERO porque son más específicos. Si captura
+  // "N° FOLIO BVN..." → no queremos que el patrón numérico de N° intente
+  // capturar el "FOLIO" como número (no lo haría, pero por orden semántico).
+  const allPatterns = [
+    ...FOLIO_ALFANUM_PATTERNS,
+    ...NUMERO_PATTERNS,
+    ...KEYWORD_NUMERO_PATTERNS,
+  ];
   for (const re of allPatterns) {
     const globalRe = new RegExp(
       re.source,
@@ -138,7 +161,8 @@ export function findNFolioCandidates(text: string): string[] {
     while ((m = globalRe.exec(normalized)) !== null) {
       if (m[1]) {
         const clean = normalizeNFolio(m[1]);
-        // Filtrar capturas con menos de 3 dígitos (demasiado corto para ser NFolio).
+        // Para folios numéricos: filtrar con menos de 3 dígitos.
+        // Para alfanuméricos: la captura ya empieza con letra, pasa si tiene 3+ dígitos.
         if (/\d{3,}/.test(clean)) found.push(clean);
       }
       if (m.index === globalRe.lastIndex) globalRe.lastIndex++;
