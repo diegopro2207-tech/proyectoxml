@@ -61,9 +61,13 @@ export const PROPUESTA_KEYWORDS = [
 
 const NUM_CHARS = '°ºo\\uFFFD';
 
-// "N°", "N-°", "N °", "Nº", "N o", "No.", "No ".
-// Permitimos guion o espacio entre N y el siguiente char.
-const N_PREFIX = `N[\\s\\-]?[${NUM_CHARS}]\\.?`;
+// Marcador "N" + algo, antes del número:
+//   - N° / Nº / No / No.  → con caracter de grado/ordinal/o
+//   - N-° / N °           → con guion o espacio antes
+//   - N. 3001155          → simplemente N seguido de punto (abreviatura de "Número")
+//   - N�             → defensa por encoding corrupto
+// La parte después de N puede ser: char-de-grado (con opcional ".") O punto solo.
+const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 
 // Capturan números como: 26.620 / 0025979 / 1.234.567
 // El grupo capturado puede tener puntos; usar normalizeNFolio() después.
@@ -134,9 +138,10 @@ export function detectPropuestaKeyword(text: string): string {
   const upper = normalizeForSearch(text);
   for (const kw of PROPUESTA_KEYWORDS) {
     if (upper.includes(kw)) {
-      // Extraer texto original (con acentos) antes del primer N°/NRO/#
+      // Extraer texto original (con acentos) antes del primer N°/N./NRO/#
+      // Usa la misma estructura que N_PREFIX para detectar el marcador.
       const splitRegex = new RegExp(
-        `N[${NUM_CHARS}]\\.?|NRO\\.?|#`,
+        `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)|NRO\\.?|#`,
         'i'
       );
       const beforeNum = text.split(splitRegex)[0].trim();
