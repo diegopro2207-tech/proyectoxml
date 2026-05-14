@@ -76,13 +76,22 @@ export const NUMERO_PATTERNS: RegExp[] = [
   /#\s*([\d][\d.]{1,14})/,
 ];
 
-// Patrones para folios ALFANUMÉRICOS (tipo BVN100012P0326).
-// Conservadores: requieren un marcador claro como "N° FOLIO" o "FOLIO" tras
-// un encabezado. Sin marcador no detectamos: ahí no hay forma de distinguir
-// el folio de ruido.
+// Patrones para folios ALFANUMÉRICOS.
+//
+// 1) Con marcador explícito tipo "N° FOLIO X".
+// 2) Códigos "sueltos" con estructura típica de Stellantis/Peugeot:
+//    [3-5 letras] + [4-8 dígitos] + [letra] + [3-6 dígitos] + [letra opcional]
+//    Ejemplos reales: BVN100012P0326, CXCL000020P0226, PSCL000020P0226P,
+//                     PSCL000007C0226P, CXCL000005P0226.
+//    Esta estructura es lo bastante específica para no producir falsos
+//    positivos en RUTs (12345678-K), montos (84687500), fechas, ni
+//    palabras sueltas (STELLANTIS, MARZO 2026, etc.).
 export const FOLIO_ALFANUM_PATTERNS: RegExp[] = [
   // "N° FOLIO BVN100012P0326", "N-° FOLIO BVN..."
   new RegExp(`${N_PREFIX}\\s*FOLIO\\s+([A-Z][A-Z0-9]{4,20})`, 'i'),
+  // Código suelto con estructura LETRAS-DIGITOS-LETRA-DIGITOS-LETRA?.
+  // Lookbehind no es seguro en todos los navegadores viejos, por eso usamos \b.
+  /\b([A-Z]{3,5}\d{4,8}[A-Z]\d{3,6}[A-Z]?)\b/,
 ];
 
 export const KEYWORD_NUMERO_PATTERNS: RegExp[] = [
