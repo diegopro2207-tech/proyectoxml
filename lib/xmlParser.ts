@@ -9,10 +9,6 @@ const parser = new XMLParser({
 });
 
 // ---------- Lectura de archivo con detección de encoding ----------
-// Los XML del SII chileno suelen declarar `encoding="ISO-8859-1"` en el
-// prólogo. Si se decodifica como UTF-8 por defecto, los bytes >0x7F (acentos,
-// °, º, ñ, etc.) se vuelven `�` y rompen los regex. Detectamos el
-// encoding declarado y usamos el TextDecoder correcto.
 
 function normalizeEncoding(enc: string): string {
   const lower = enc.toLowerCase().trim().replace(/_/g, '-');
@@ -44,13 +40,10 @@ export async function readXmlFile(file: File): Promise<string> {
   try {
     return new TextDecoder(encoding, { fatal: false }).decode(bytes);
   } catch {
-    // Fallback si el navegador no reconoce la etiqueta declarada.
     return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
   }
 }
 
-// Indica si un string contiene un volumen sospechoso de caracteres de
-// reemplazo (decodificación fallida). Umbral: 3 o más.
 export function hasEncodingArtifacts(text: string): boolean {
   if (!text) return false;
   const count = (text.match(/�/g) || []).length;
@@ -74,8 +67,6 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Algunos XML de Sovos pueden venir envueltos en <EnvioDTE>...<SetDTE><DTE>...
-// Otros vienen como <DTE> directo. Normalizamos para obtener el nodo Documento.
 function locateDocumento(parsed: any): any | null {
   if (!parsed || typeof parsed !== 'object') return null;
 
@@ -92,7 +83,6 @@ function locateDocumento(parsed: any): any | null {
     if (envio.DTE?.Documento) return envio.DTE.Documento;
   }
 
-  // Búsqueda recursiva de respaldo.
   const queue: any[] = [parsed];
   const seen = new Set<any>();
   while (queue.length) {
@@ -108,23 +98,25 @@ function locateDocumento(parsed: any): any | null {
   return null;
 }
 
-function collectReferenceTexts(referencias: any[]): {
-  folioRef: string[];
-  razonRef: string[];
+// Extrae LA referencia 801 (Orden de Compra) si existe. Solo retorna la primera.
+// Si hay más de una con TpoDocRef=801 (raro), tomamos la primera.
+function findRef801(referencias: any[]): {
+  folioRef: string;
+  razonRef: string;
 } {
-  const folioRef: string[] = [];
-  const razonRef: string[] = [];
   for (const ref of referencias) {
-    const fr = toStr(ref?.FolioRef);
-    const rr = toStr(ref?.RazonRef);
-    if (fr) folioRef.push(fr);
-    if (rr) razonRef.push(rr);
+    const tipo = toStr(ref?.TpoDocRef);
+    if (tipo === '801') {
+      return {
+        folioRef: toStr(ref?.FolioRef),
+        razonRef: toStr(ref?.RazonRef),
+      };
+    }
   }
-  return { folioRef, razonRef };
+  return { folioRef: '', razonRef: '' };
 }
 
-// Elimina prefijos del tipo "AUTO@", "A@" que algunos sistemas emisores
-// anteponen al texto del ítem (ej: "AUTO@Facturación de garantías...").
+// Elimina prefijos del tipo "AUTO@", "A@" del texto del ítem.
 function stripSystemPrefix(text: string): string {
   return text.replace(/^[A-Za-z]{1,6}@/, '').trim();
 }
@@ -132,10 +124,7 @@ function stripSystemPrefix(text: string): string {
 function collectDetalleTexts(detalles: any[]): {
   nmbItem: string[];
   dscItem: string[];
-  // Glosas agrupadas POR ÍTEM: NmbItem + DscItem unidos por " — " dentro de
-  // cada detalle, y los detalles separados por " | ".
   glosasPorItem: string;
-  // Glosas planas (para búsqueda de patrones).
   glosasFlat: string;
 } {
   const nmbItem: string[] = [];
@@ -159,11 +148,12 @@ function collectDetalleTexts(detalles: any[]): {
 
 export interface ParsedXmlPayload {
   raw: RawInvoiceData;
-  // Textos crudos por fuente para que el analizador pueda buscar el NFolio
-  // priorizando RazonRef > FolioRef > NmbItem > DscItem.
+  // Textos por fuente que el analizador usa para detectar propuesta/provision/VIN/etc.
   fuentes: {
-    folioRef: string;
-    razonRef: string;
+    // Solo de la referencia 801 (Orden de Compra).
+    folioRef801: string;
+    razonRef801: string;
+    // Glosas de todos los detalles.
     nmbItem: string;
     dscItem: string;
   };
@@ -179,7 +169,12 @@ export function parseInvoiceXml(
   if (!doc) {
     return {
       raw: emptyRaw(fileName),
-      fuentes: { folioRef: '', razonRef: '', nmbItem: '', dscItem: '' },
+      fuentes: {
+        folioRef801: '',
+        razonRef801: '',
+        nmbItem: '',
+        dscItem: '',
+      },
     };
   }
 
@@ -192,35 +187,39 @@ export function parseInvoiceXml(
   const referencias = toArray<any>(doc.Referencia);
   const detalles = toArray<any>(doc.Detalle);
 
-  const refs = collectReferenceTexts(referencias);
+  const ref801 = findRef801(referencias);
   const dets = collectDetalleTexts(detalles);
 
-  const folioRefStr = refs.folioRef.join(' | ');
-  const razonRefStr = refs.razonRef.join(' | ');
+  const tipoDTE = toStr(idDoc.TipoDTE);
+  const folioFactura = toStr(idDoc.Folio);
+  // Folio-SAP: concat de TipoDTE-FolioFactura, ej: "33-100729".
+  const folioSAP =
+    tipoDTE && folioFactura ? `${tipoDTE}-${folioFactura}` : '';
 
   const raw: RawInvoiceData = {
     archivo: fileName,
-    tipoDTE: toStr(idDoc.TipoDTE),
-    folioFactura: toStr(idDoc.Folio),
+    tipoDTE,
+    folioFactura,
+    folioSAP,
     fechaEmision: toStr(idDoc.FchEmis),
     rutEmisor: toStr(emisor.RUTEmisor),
     razonSocialEmisor: toStr(emisor.RznSoc ?? emisor.RznSocEmisor),
     rutReceptor: toStr(receptor.RUTRecep),
     razonSocialReceptor: toStr(receptor.RznSocRecep),
+    montoExento: toNumber(totales.MntExe),
     montoNeto: toNumber(totales.MntNeto),
     iva: toNumber(totales.IVA),
     montoTotal: toNumber(totales.MntTotal),
-    folioRefOriginal: folioRefStr,
-    motivoOriginal: razonRefStr,
-    // Ahora contiene TODAS las glosas agrupadas por ítem.
+    numeroOC: ref801.folioRef,
+    motivoOriginal: ref801.razonRef,
     descripcionItemsOriginal: dets.glosasPorItem,
   };
 
   return {
     raw,
     fuentes: {
-      folioRef: folioRefStr,
-      razonRef: razonRefStr,
+      folioRef801: ref801.folioRef,
+      razonRef801: ref801.razonRef,
       nmbItem: dets.nmbItem.join(' | '),
       dscItem: dets.dscItem.join(' | '),
     },
@@ -232,15 +231,17 @@ function emptyRaw(fileName: string): RawInvoiceData {
     archivo: fileName,
     tipoDTE: '',
     folioFactura: '',
+    folioSAP: '',
     fechaEmision: '',
     rutEmisor: '',
     razonSocialEmisor: '',
     rutReceptor: '',
     razonSocialReceptor: '',
+    montoExento: null,
     montoNeto: null,
     iva: null,
     montoTotal: null,
-    folioRefOriginal: '',
+    numeroOC: '',
     motivoOriginal: '',
     descripcionItemsOriginal: '',
   };

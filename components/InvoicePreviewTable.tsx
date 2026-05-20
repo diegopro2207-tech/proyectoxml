@@ -18,6 +18,7 @@ const COLS: ColDef[] = [
   { key: 'archivo', label: 'Archivo' },
   { key: 'tipoDTE', label: 'TipoDTE' },
   { key: 'folioFactura', label: 'FolioFactura' },
+  { key: 'folioSAP', label: 'Folio-SAP' },
   {
     key: 'fechaEmision',
     label: 'FechaEmision',
@@ -25,6 +26,11 @@ const COLS: ColDef[] = [
   },
   { key: 'rutEmisor', label: 'RUTEmisor' },
   { key: 'razonSocialEmisor', label: 'RazonSocialEmisor' },
+  {
+    key: 'montoExento',
+    label: 'MontoExento',
+    format: (r) => formatNumber(r.montoExento),
+  },
   {
     key: 'montoNeto',
     label: 'MontoNeto',
@@ -36,11 +42,11 @@ const COLS: ColDef[] = [
     label: 'MontoTotal',
     format: (r) => formatNumber(r.montoTotal),
   },
-  { key: 'folioRefOriginal', label: 'Numero de OC' },
+  { key: 'numeroOC', label: 'Numero de OC' },
   { key: 'motivoOriginal', label: 'MotivoOriginal' },
   { key: 'descripcionItemsOriginal', label: 'Glosas Items' },
-  { key: 'nFolioDetectado', label: 'Codigo de Propuesta' },
-  { key: 'motivoLimpio', label: 'MotivoLimpio' },
+  { key: 'codigoPropuesta', label: 'Codigo de Propuesta' },
+  { key: 'codigoProvision', label: 'Codigo Provision' },
   { key: 'propuestaDetectada', label: 'PropuestaDetectada' },
   {
     key: 'vinDetectado',
@@ -51,27 +57,20 @@ const COLS: ColDef[] = [
         : '',
   },
   { key: 'customerCare', label: 'CustomerCare' },
-  { key: 'observacion', label: 'Observacion' },
-  { key: 'confianza', label: 'Confianza' },
+  { key: 'reembolso', label: 'Reembolso' },
 ];
 
 function cellClass(row: AnalyzedInvoice, key: keyof AnalyzedInvoice): string {
-  if (key === 'observacion') {
-    if (row.observacion.includes('Revisar')) return 'cell warn';
-    if (row.observacion === 'Correcto') return 'cell ok';
-    return 'cell info';
-  }
-  if (key === 'confianza') {
-    if (row.confianza >= 0.85) return 'cell ok';
-    if (row.confianza >= 0.6) return 'cell info';
-    return 'cell warn';
-  }
   if (key === 'customerCare' && row.customerCare) return 'cell info';
+  if (key === 'reembolso' && row.reembolso) return 'cell info';
+  if (key === 'codigoPropuesta' && row.codigoPropuesta) return 'cell ok';
+  if (key === 'codigoProvision' && row.codigoProvision) return 'cell ok';
   return 'cell';
 }
 
 function defaultFmt(value: unknown): string {
   if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'number') return String(value);
   return String(value);
 }

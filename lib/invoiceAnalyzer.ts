@@ -1,205 +1,75 @@
-import type {
-  AnalyzedInvoice,
-  DetectionResult,
-  DetectionSource,
-} from '@/types/invoice';
+import type { AnalyzedInvoice } from '@/types/invoice';
 import type { ParsedXmlPayload } from './xmlParser';
-import { hasEncodingArtifacts } from './xmlParser';
 import {
-  cleanMotivo,
   detectCustomerCare,
   detectPropuestaKeyword,
+  detectReembolso,
   findAllVINs,
-  findNFolioCandidates,
-  looksGeneric,
+  findCodigoProvision,
+  findPropuestaCode,
 } from './patterns';
 
-// Orden de prioridad para buscar NFolio.
-const PRIORITY: DetectionSource[] = ['RazonRef', 'FolioRef', 'NmbItem', 'DscItem'];
+// Busca el Código de Propuesta en este orden:
+//   1) RazonRef del 801 (motivo de la orden de compra).
+//   2) Glosas (NmbItem + DscItem).
+// Solo dispara cuando hay keyword PROPOSICION/PROPUESTA/PROP presente.
+function detectCodigoPropuesta(fuentes: ParsedXmlPayload['fuentes']): string {
+  // 1) Motivo del 801
+  const fromMotivo = findPropuestaCode(fuentes.razonRef801);
+  if (fromMotivo) return fromMotivo;
 
-function pickSourceText(
-  fuentes: ParsedXmlPayload['fuentes'],
-  src: DetectionSource
-): string {
-  switch (src) {
-    case 'RazonRef':
-      return fuentes.razonRef;
-    case 'FolioRef':
-      return fuentes.folioRef;
-    case 'NmbItem':
-      return fuentes.nmbItem;
-    case 'DscItem':
-      return fuentes.dscItem;
-    default:
-      return '';
-  }
+  // 2) Glosas (combinadas)
+  const glosas = [fuentes.nmbItem, fuentes.dscItem].filter(Boolean).join(' | ');
+  const fromGlosas = findPropuestaCode(glosas);
+  if (fromGlosas) return fromGlosas;
+
+  return '';
 }
 
-// Compara dos identificadores ignorando ceros a la izquierda y espacios.
-function sameNumber(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  const norm = (x: string) => x.replace(/\s+/g, '').replace(/^0+/, '');
-  return norm(a) === norm(b);
-}
-
-export function detectFromSources(
-  fuentes: ParsedXmlPayload['fuentes'],
-  folioFactura: string
-): DetectionResult {
-  const allCandidates: string[] = [];
-  let chosen = '';
-  let chosenSource: DetectionSource = 'None';
-
-  for (const src of PRIORITY) {
-    const txt = pickSourceText(fuentes, src);
-    const cands = findNFolioCandidates(txt).filter(
-      // Descartar candidatos que sean el mismo número que el folio de la factura.
-      (c) => !sameNumber(c, folioFactura)
-    );
-    if (cands.length && !chosen) {
-      chosen = cands[0];
-      chosenSource = src;
-    }
-    allCandidates.push(...cands);
-  }
-
-  // Texto combinado para VIN y propuesta.
-  const combined = [
-    fuentes.razonRef,
-    fuentes.folioRef,
+// Busca el Código de Provisión en glosas y motivo.
+function detectCodigoProvision(fuentes: ParsedXmlPayload['fuentes']): string {
+  const todoTexto = [
+    fuentes.razonRef801,
     fuentes.nmbItem,
     fuentes.dscItem,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+  return findCodigoProvision(todoTexto);
+}
+
+export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
+  const codigoPropuesta = detectCodigoPropuesta(payload.fuentes);
+  const codigoProvision = detectCodigoProvision(payload.fuentes);
+
+  // Texto combinado para VIN, propuesta-keyword, customerCare y reembolso.
+  const combined = [
+    payload.fuentes.razonRef801,
+    payload.fuentes.nmbItem,
+    payload.fuentes.dscItem,
   ]
     .filter(Boolean)
     .join(' | ');
 
   const vins = findAllVINs(combined);
 
-  // MotivoLimpio: priorizar RazonRef como base; si está vacío, usar FolioRef.
-  const motivoBase = fuentes.razonRef || fuentes.folioRef || '';
-  const motivoLimpio = cleanMotivo(motivoBase);
-
-  // Propuesta detectada.
-  const propuesta =
-    detectPropuestaKeyword(motivoLimpio) ||
-    detectPropuestaKeyword(fuentes.razonRef) ||
-    detectPropuestaKeyword(fuentes.folioRef) ||
-    detectPropuestaKeyword(fuentes.nmbItem) ||
-    detectPropuestaKeyword(fuentes.dscItem) ||
+  const propuestaDetectada =
+    detectPropuestaKeyword(payload.fuentes.razonRef801) ||
+    detectPropuestaKeyword(payload.fuentes.nmbItem) ||
+    detectPropuestaKeyword(payload.fuentes.dscItem) ||
     '';
 
-  const folioRefLooksGeneric =
-    !!fuentes.folioRef && looksGeneric(fuentes.folioRef);
-
-  return {
-    nFolio: chosen,
-    source: chosenSource,
-    propuesta,
-    motivoLimpio,
-    vins,
-    candidates: Array.from(new Set(allCandidates)),
-    folioRefLooksGeneric,
-  };
-}
-
-function buildObservacion(
-  det: DetectionResult,
-  fuentes: ParsedXmlPayload['fuentes'],
-  encodingSospechoso: boolean
-): string {
-  const obs: string[] = [];
-
-  if (encodingSospechoso) {
-    obs.push('Encoding sospechoso (revisar acentos/símbolos)');
-  }
-
-  if (det.candidates.length > 1) {
-    obs.push('Revisar manualmente');
-  }
-
-  if (det.nFolio) {
-    if (det.source === 'RazonRef') obs.push('NFolio detectado en motivo');
-    else if (det.source === 'NmbItem' || det.source === 'DscItem')
-      obs.push('NFolio detectado en descripción de ítem');
-  } else {
-    obs.push('NFolio no detectado');
-  }
-
-  if (det.vins.length > 0) {
-    obs.push(
-      det.vins.length === 1
-        ? 'VIN detectado en descripción'
-        : `${det.vins.length} VINs detectados en descripción`
-    );
-  }
-
-  if (det.folioRefLooksGeneric && det.source !== 'FolioRef') {
-    obs.push('FolioRef parece incompleto o genérico');
-  }
-
-  if (!obs.length) obs.push('Correcto');
-
-  return obs.join(' | ');
-}
-
-function computeConfianza(
-  det: DetectionResult,
-  fuentes: ParsedXmlPayload['fuentes'],
-  encodingSospechoso: boolean
-): number {
-  let score = 0.5;
-
-  if (det.nFolio) {
-    if (det.source === 'FolioRef' && /^\d+$/.test(fuentes.folioRef.trim())) {
-      score = 0.98;
-    } else if (det.source === 'RazonRef') {
-      score = 0.85;
-    } else if (det.source === 'FolioRef') {
-      score = 0.8;
-    } else {
-      score = 0.65;
-    }
-  } else {
-    score = 0.2;
-  }
-
-  if (det.candidates.length > 1) score -= 0.2;
-  if (det.folioRefLooksGeneric && det.source !== 'FolioRef') score -= 0.05;
-  if (encodingSospechoso) score -= 0.1;
-  if (det.vins.length > 0) score += 0.02;
-
-  return Math.max(0, Math.min(1, Number(score.toFixed(2))));
-}
-
-export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
-  const encodingSospechoso =
-    hasEncodingArtifacts(payload.fuentes.razonRef) ||
-    hasEncodingArtifacts(payload.fuentes.folioRef) ||
-    hasEncodingArtifacts(payload.fuentes.nmbItem) ||
-    hasEncodingArtifacts(payload.fuentes.dscItem);
-
-  const det = detectFromSources(payload.fuentes, payload.raw.folioFactura);
-  const observacion = buildObservacion(det, payload.fuentes, encodingSospechoso);
-  const confianza = computeConfianza(det, payload.fuentes, encodingSospechoso);
-
-  // Buscar CustomerCare en TODAS las glosas (NmbItem + DscItem).
-  const glosasParaBuscar = [
-    payload.fuentes.nmbItem,
-    payload.fuentes.dscItem,
-  ]
-    .filter(Boolean)
-    .join(' | ');
-  const customerCare = detectCustomerCare(glosasParaBuscar) ? 'Sí' : '';
+  const customerCare = detectCustomerCare(combined) ? 'Sí' : '';
+  const reembolso = detectReembolso(combined) ? 'Sí' : '';
 
   return {
     ...payload.raw,
-    nFolioDetectado: det.nFolio,
-    motivoLimpio: det.motivoLimpio,
-    propuestaDetectada: det.propuesta,
-    vinDetectado: det.vins,
+    codigoPropuesta,
+    codigoProvision,
+    propuestaDetectada,
+    vinDetectado: vins,
     customerCare,
-    observacion,
-    confianza,
+    reembolso,
   };
 }
 

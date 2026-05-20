@@ -82,10 +82,13 @@ export default function HomePage() {
 
   const stats = useMemo(() => {
     const total = rows.length;
-    const conNFolio = rows.filter((r) => r.nFolioDetectado).length;
+    const conPropuesta = rows.filter((r) => r.codigoPropuesta).length;
+    const conProvision = rows.filter((r) => r.codigoProvision).length;
+    const conOC = rows.filter((r) => r.numeroOC).length;
     const conVIN = rows.filter((r) => r.vinDetectado.length > 0).length;
-    const revisar = rows.filter((r) => r.observacion.includes('Revisar')).length;
-    return { total, conNFolio, conVIN, revisar };
+    const conCare = rows.filter((r) => r.customerCare).length;
+    const conReembolso = rows.filter((r) => r.reembolso).length;
+    return { total, conPropuesta, conProvision, conOC, conVIN, conCare, conReembolso };
   }, [rows]);
 
   return (
@@ -120,13 +123,22 @@ export default function HomePage() {
             Total: <strong>{stats.total}</strong>
           </span>
           <span className="chip">
-            Con NFolio detectado: <strong>{stats.conNFolio}</strong>
+            Con N° OC: <strong>{stats.conOC}</strong>
+          </span>
+          <span className="chip">
+            Con Propuesta: <strong>{stats.conPropuesta}</strong>
+          </span>
+          <span className="chip">
+            Con Provisión: <strong>{stats.conProvision}</strong>
           </span>
           <span className="chip">
             Con VIN: <strong>{stats.conVIN}</strong>
           </span>
           <span className="chip">
-            Requieren revisión: <strong>{stats.revisar}</strong>
+            CustomerCare: <strong>{stats.conCare}</strong>
+          </span>
+          <span className="chip">
+            Reembolso: <strong>{stats.conReembolso}</strong>
           </span>
         </div>
       )}
