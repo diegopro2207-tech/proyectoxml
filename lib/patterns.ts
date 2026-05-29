@@ -40,12 +40,13 @@ const NUM_CHARS = '°ºo\\uFFFD';
 const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 
 // Frases que indican que el número siguiente es una propuesta.
-const PROPUESTA_PHRASE = '(?:PROPOSICION|PROPUESTA|PROP)';
+// PF también se acepta como prefijo de propuesta (ej. "PF 26414" o "PF26414").
+const PROPUESTA_PHRASE = '(?:PROPOSICION|PROPUESTA|PROP|PF)';
 
 // Patrones para extraer el número de propuesta (siempre numérico).
 // Aceptamos puntos como separadores de miles dentro del número.
 const PROPUESTA_NUM_PATTERNS: RegExp[] = [
-  // "PROPOSICION N° 26414", "PROPUESTA N. 3001155", "PROP Nº 12345"
+  // "PROPOSICION N° 26414", "PROPUESTA N. 3001155", "PROP Nº 12345", "PF 26414"
   new RegExp(
     `\\b${PROPUESTA_PHRASE}\\.?\\s+(?:DE\\s+\\w+\\s+)?(?:${N_PREFIX}\\s*)?([\\d][\\d.]{1,14})\\b`,
     'i'
@@ -55,6 +56,8 @@ const PROPUESTA_NUM_PATTERNS: RegExp[] = [
     `\\bSEGUN\\s+${PROPUESTA_PHRASE}\\.?\\s+(?:${N_PREFIX}\\s*)?([\\d][\\d.]{1,14})\\b`,
     'i'
   ),
+  // "PF26414" pegado, sin espacio (frecuente en glosas cortas).
+  /\bPF[\s\-]*([\d][\d.]{2,14})\b/i,
 ];
 
 // Patrones para folio alfanumérico explícitamente marcado: "N° FOLIO X".
@@ -70,7 +73,8 @@ export function findPropuestaCode(text: string): string {
   const normalized = normalizeForSearch(text);
 
   // Si no hay keyword de propuesta en el texto, no detectamos nada.
-  if (!/\b(PROPOSICION|PROPUESTA|PROP)\b/.test(normalized)) return '';
+  // PF también cuenta como keyword (pegado al número o separado).
+  if (!/\b(PROPOSICION|PROPUESTA|PROP|PF)\b/.test(normalized) && !/\bPF\d/.test(normalized)) return '';
 
   // 1) Intentar capturar con marcador FOLIO alfanumérico cercano.
   const marcado = normalized.match(FOLIO_MARCADO_PATTERN);
@@ -97,11 +101,32 @@ export function findPropuestaCode(text: string): string {
 
 const CODIGO_PROVISION_REGEX = /\b([A-Z]{3,5}\d{4,8}[A-Z]\d{3,6}[A-Z]?)\b/;
 
+// Variante para códigos que TERMINAN en BVN (o cuyo segmento BVN aparece al final
+// con dígitos detrás), p.ej. "100012P0326BVN", "20P0226BVN". Cuentan como provisión.
+const CODIGO_PROVISION_BVN_END_REGEX =
+  /\b([A-Z]{0,5}\d{4,10}[A-Z]\d{2,8}BVN[A-Z0-9]*)\b/;
+
+// Variante general: cualquier token alfanumérico que contenga "BVN" rodeado por
+// dígitos suficientes para parecer un código de provisión.
+const CODIGO_PROVISION_BVN_ANY_REGEX = /\b([A-Z0-9]*\d{3,}[A-Z0-9]*BVN[A-Z0-9]*)\b/;
+
 export function findCodigoProvision(text: string): string {
   if (!text) return '';
   const normalized = normalizeForSearch(text);
+
+  // 1) Patrón clásico (prefijo de letras tipo BVN, CXCL, PSCL).
   const m = normalized.match(CODIGO_PROVISION_REGEX);
-  return m ? m[1] : '';
+  if (m) return m[1];
+
+  // 2) Códigos que terminan en BVN con estructura compatible.
+  const mEnd = normalized.match(CODIGO_PROVISION_BVN_END_REGEX);
+  if (mEnd) return mEnd[1];
+
+  // 3) Fallback: cualquier token con BVN + dígitos suficientes.
+  const mAny = normalized.match(CODIGO_PROVISION_BVN_ANY_REGEX);
+  if (mAny) return mAny[1];
+
+  return '';
 }
 
 // ─── Detección de "PropuestaDetectada" (frase keyword) ───────────────────────

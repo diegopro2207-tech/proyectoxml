@@ -45,6 +45,7 @@ const COLS: ColDef[] = [
   { key: 'numeroOC', label: 'Numero de OC' },
   { key: 'motivoOriginal', label: 'MotivoOriginal' },
   { key: 'descripcionItemsOriginal', label: 'Glosas Items' },
+  { key: 'referencias1', label: 'Referencias1' },
   { key: 'codigoPropuesta', label: 'Codigo de Propuesta' },
   { key: 'codigoProvision', label: 'Codigo Provision' },
   { key: 'propuestaDetectada', label: 'PropuestaDetectada' },

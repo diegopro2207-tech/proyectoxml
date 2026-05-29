@@ -51,6 +51,7 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'numeroOC', header: 'Numero de OC', width: 18 },
   { key: 'motivoOriginal', header: 'MotivoOriginal', width: 50 },
   { key: 'descripcionItemsOriginal', header: 'Glosas Items', width: 60 },
+  { key: 'referencias1', header: 'Referencias1', width: 60 },
   { key: 'codigoPropuesta', header: 'Codigo de Propuesta', width: 18 },
   { key: 'codigoProvision', header: 'Codigo Provision', width: 22 },
   { key: 'propuestaDetectada', header: 'PropuestaDetectada', width: 35 },

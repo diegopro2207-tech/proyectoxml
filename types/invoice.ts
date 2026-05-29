@@ -20,6 +20,9 @@ export interface RawInvoiceData {
   motivoOriginal: string;
   // Glosas: NmbItem + DscItem de cada detalle, agrupadas.
   descripcionItemsOriginal: string;
+  // Referencias1: TODO el texto de referencias cuyo TpoDocRef NO sea 801
+  // (puede ser tipo 1, 802, HES, etc.). Se concatenan separadas con " | ".
+  referencias1: string;
 }
 
 export interface AnalyzedInvoice extends RawInvoiceData {

@@ -116,6 +116,26 @@ function findRef801(referencias: any[]): {
   return { folioRef: '', razonRef: '' };
 }
 
+// Recolecta TODO el texto útil de referencias cuyo TpoDocRef NO es 801.
+// Incluye TpoDocRef, FolioRef y RazonRef de cada una. Útil cuando la factura
+// referencia documentos tipo 1 (factura), 802 (HES), etc.
+function collectRefsNo801(referencias: any[]): string {
+  const parts: string[] = [];
+  for (const ref of referencias) {
+    const tipo = toStr(ref?.TpoDocRef);
+    if (tipo === '801') continue;
+    const folio = toStr(ref?.FolioRef);
+    const razon = toStr(ref?.RazonRef);
+    const piezas = [
+      tipo ? `TpoDocRef=${tipo}` : '',
+      folio ? `FolioRef=${folio}` : '',
+      razon ? `RazonRef=${razon}` : '',
+    ].filter(Boolean);
+    if (piezas.length) parts.push(piezas.join(' '));
+  }
+  return parts.join(' | ');
+}
+
 // Elimina prefijos del tipo "AUTO@", "A@" del texto del ítem.
 function stripSystemPrefix(text: string): string {
   return text.replace(/^[A-Za-z]{1,6}@/, '').trim();
@@ -156,6 +176,8 @@ export interface ParsedXmlPayload {
     // Glosas de todos los detalles.
     nmbItem: string;
     dscItem: string;
+    // Texto concatenado de las referencias que no son 801.
+    referencias1: string;
   };
 }
 
@@ -174,6 +196,7 @@ export function parseInvoiceXml(
         razonRef801: '',
         nmbItem: '',
         dscItem: '',
+        referencias1: '',
       },
     };
   }
@@ -188,6 +211,7 @@ export function parseInvoiceXml(
   const detalles = toArray<any>(doc.Detalle);
 
   const ref801 = findRef801(referencias);
+  const referencias1 = collectRefsNo801(referencias);
   const dets = collectDetalleTexts(detalles);
 
   const tipoDTE = toStr(idDoc.TipoDTE);
@@ -213,6 +237,7 @@ export function parseInvoiceXml(
     numeroOC: ref801.folioRef,
     motivoOriginal: ref801.razonRef,
     descripcionItemsOriginal: dets.glosasPorItem,
+    referencias1,
   };
 
   return {
@@ -222,6 +247,7 @@ export function parseInvoiceXml(
       razonRef801: ref801.razonRef,
       nmbItem: dets.nmbItem.join(' | '),
       dscItem: dets.dscItem.join(' | '),
+      referencias1,
     },
   };
 }
@@ -244,5 +270,6 @@ function emptyRaw(fileName: string): RawInvoiceData {
     numeroOC: '',
     motivoOriginal: '',
     descripcionItemsOriginal: '',
+    referencias1: '',
   };
 }

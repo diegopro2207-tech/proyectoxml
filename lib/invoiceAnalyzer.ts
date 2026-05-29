@@ -23,6 +23,10 @@ function detectCodigoPropuesta(fuentes: ParsedXmlPayload['fuentes']): string {
   const fromGlosas = findPropuestaCode(glosas);
   if (fromGlosas) return fromGlosas;
 
+  // 3) Referencias distintas a 801 (tipo 1, 802, HES, etc.)
+  const fromRef1 = findPropuestaCode(fuentes.referencias1);
+  if (fromRef1) return fromRef1;
+
   return '';
 }
 
@@ -32,6 +36,7 @@ function detectCodigoProvision(fuentes: ParsedXmlPayload['fuentes']): string {
     fuentes.razonRef801,
     fuentes.nmbItem,
     fuentes.dscItem,
+    fuentes.referencias1,
   ]
     .filter(Boolean)
     .join(' | ');
@@ -47,6 +52,7 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
     payload.fuentes.razonRef801,
     payload.fuentes.nmbItem,
     payload.fuentes.dscItem,
+    payload.fuentes.referencias1,
   ]
     .filter(Boolean)
     .join(' | ');
@@ -57,6 +63,7 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
     detectPropuestaKeyword(payload.fuentes.razonRef801) ||
     detectPropuestaKeyword(payload.fuentes.nmbItem) ||
     detectPropuestaKeyword(payload.fuentes.dscItem) ||
+    detectPropuestaKeyword(payload.fuentes.referencias1) ||
     '';
 
   const customerCare = detectCustomerCare(combined) ? 'Sí' : '';
