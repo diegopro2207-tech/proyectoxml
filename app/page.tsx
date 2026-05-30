@@ -6,6 +6,7 @@ import InvoicePreviewTable from '@/components/InvoicePreviewTable';
 import { parseInvoiceXml, readXmlFile } from '@/lib/xmlParser';
 import { analyzeInvoice } from '@/lib/invoiceAnalyzer';
 import { exportInvoicesToExcel } from '@/lib/exportExcel';
+import { dedupeInvoices } from '@/lib/dedupe';
 import type { AnalyzedInvoice } from '@/types/invoice';
 
 interface FileError {
@@ -57,13 +58,20 @@ export default function HomePage() {
       }
     }
 
-    // Una sola actualización al final — sin duplicados.
-    setRows((prev) => [...prev, ...newRows]);
+    // Combinar con lo existente y eliminar duplicados (misma factura).
+    // De los repetidos se descarta el que no tenga montos; si ambos tienen
+    // montos, se conserva solo uno.
+    let removed = 0;
+    setRows((prev) => {
+      const { rows: deduped, removed: r } = dedupeInvoices([...prev, ...newRows]);
+      removed = r;
+      return deduped;
+    });
     setErrors((prev) => [...prev, ...newErrors]);
     setStatus(
       `Listo. ${newRows.length} archivo(s) procesado(s)${
-        newErrors.length ? `, ${newErrors.length} con error` : ''
-      }.`
+        removed ? `, ${removed} duplicado(s) eliminado(s)` : ''
+      }${newErrors.length ? `, ${newErrors.length} con error` : ''}.`
     );
     setProcessing(false);
   }

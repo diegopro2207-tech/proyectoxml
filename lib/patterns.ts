@@ -40,16 +40,23 @@ const NUM_CHARS = '°ºo\\uFFFD';
 const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 
 // Frases que indican que el número siguiente es una propuesta.
-// PF también se acepta como prefijo de propuesta (ej. "PF 26414" o "PF26414").
-const PROPUESTA_PHRASE = '(?:PROPOSICION|PROPUESTA|PROP|PF)';
+// - PROPOSIC* y PROPUEST* cubren la palabra completa y errores de tipeo
+//   frecuentes (PROPOSICIOIN, PROPOCISION, PROPUESTAS, etc.).
+// - PROP suelto solo si va seguido de espacio/punto/°/#/guion o dígito
+//   (evita capturar PROPIEDAD, PROPORCIONAL, etc.).
+// - PF para el formato corto ("PF 26414" o "PF26414").
+const PROPUESTA_PHRASE =
+  `(?:PROPOSIC[A-Z]*|PROPUEST[A-Z]*|PROP(?=[\\s.:#°º\\-]|\\d)|PF)`;
 
 // Conector flexible entre la palabra clave y el número de propuesta.
-// Permite letras, espacios, N°/N./Nº, dos puntos, #, guiones — pero NO comas
-// ni otros números (clase sin dígitos), para no saltar a un número distinto.
+// Permite letras, espacios, N°/N./Nº, dos puntos, #, guiones y el separador "|"
+// (las glosas de NmbItem y DscItem se unen con " | ", y la keyword puede quedar
+// en un campo y el número en el siguiente) — pero NO comas ni otros números
+// (clase sin dígitos), para no saltar a un número distinto.
 // Lazy ({0,40}?) para capturar el PRIMER número que aparece tras la keyword.
 // Cubre: "DE FACTURA N 3002461", "DE LA FACTURA N. 3001058", "FACTURA N°3000871",
-//        "DE FACTURA:3000816", "N° 26414", "PF26414" (conector vacío).
-const PROP_FILLER = `[A-Z\\s.:#°º${'\\uFFFD'}\\-]{0,40}?`;
+//        "DE FACTURA:3000816", "PROPOSICION | FACTURA N°26535", "PF26414".
+const PROP_FILLER = `[A-Z\\s.:#°º|${'\\uFFFD'}\\-]{0,40}?`;
 
 // Patrones para extraer el número de propuesta (siempre numérico).
 // Aceptamos puntos como separadores de miles dentro del número.
@@ -70,9 +77,9 @@ export function findPropuestaCode(text: string): string {
   if (!text) return '';
   const normalized = normalizeForSearch(text);
 
-  // Si no hay keyword de propuesta en el texto, no detectamos nada.
-  // PF también cuenta como keyword (pegado al número o separado).
-  if (!/\b(PROPOSICION|PROPUESTA|PROP|PF)\b/.test(normalized) && !/\bPF\d/.test(normalized)) return '';
+  // Si no hay indicio de propuesta en el texto, no detectamos nada.
+  // (El patrón estricto de PROPUESTA_PHRASE hace el filtrado fino.)
+  if (!/\bPROP/.test(normalized) && !/\bPF/.test(normalized)) return '';
 
   // 1) Intentar capturar con marcador FOLIO alfanumérico cercano.
   const marcado = normalized.match(FOLIO_MARCADO_PATTERN);
