@@ -43,21 +43,19 @@ const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 // PF también se acepta como prefijo de propuesta (ej. "PF 26414" o "PF26414").
 const PROPUESTA_PHRASE = '(?:PROPOSICION|PROPUESTA|PROP|PF)';
 
+// Conector flexible entre la palabra clave y el número de propuesta.
+// Permite letras, espacios, N°/N./Nº, dos puntos, #, guiones — pero NO comas
+// ni otros números (clase sin dígitos), para no saltar a un número distinto.
+// Lazy ({0,40}?) para capturar el PRIMER número que aparece tras la keyword.
+// Cubre: "DE FACTURA N 3002461", "DE LA FACTURA N. 3001058", "FACTURA N°3000871",
+//        "DE FACTURA:3000816", "N° 26414", "PF26414" (conector vacío).
+const PROP_FILLER = `[A-Z\\s.:#°º${'\\uFFFD'}\\-]{0,40}?`;
+
 // Patrones para extraer el número de propuesta (siempre numérico).
 // Aceptamos puntos como separadores de miles dentro del número.
 const PROPUESTA_NUM_PATTERNS: RegExp[] = [
-  // "PROPOSICION N° 26414", "PROPUESTA N. 3001155", "PROP Nº 12345", "PF 26414"
-  new RegExp(
-    `\\b${PROPUESTA_PHRASE}\\.?\\s+(?:DE\\s+\\w+\\s+)?(?:${N_PREFIX}\\s*)?([\\d][\\d.]{1,14})\\b`,
-    'i'
-  ),
-  // "SEGUN PROPOSICION N° 26414" — variante con conector
-  new RegExp(
-    `\\bSEGUN\\s+${PROPUESTA_PHRASE}\\.?\\s+(?:${N_PREFIX}\\s*)?([\\d][\\d.]{1,14})\\b`,
-    'i'
-  ),
-  // "PF26414" pegado, sin espacio (frecuente en glosas cortas).
-  /\bPF[\s\-]*([\d][\d.]{2,14})\b/i,
+  // Patrón principal flexible: keyword + conector + número.
+  new RegExp(`\\b${PROPUESTA_PHRASE}${PROP_FILLER}(\\d[\\d.]{2,14})\\b`, 'i'),
 ];
 
 // Patrones para folio alfanumérico explícitamente marcado: "N° FOLIO X".
