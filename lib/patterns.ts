@@ -46,7 +46,7 @@ const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 //   (evita capturar PROPIEDAD, PROPORCIONAL, etc.).
 // - PF para el formato corto ("PF 26414" o "PF26414").
 const PROPUESTA_PHRASE =
-  `(?:PROPOSIC[A-Z]*|PROPUEST[A-Z]*|PROP(?=[\\s.:#°º\\-]|\\d)|PF)`;
+  `(?:PROPOSIC[A-Z]*|PROPOPOSIC[A-Z]*|PROPOSC[A-Z]*|PROPOSIS[A-Z]*|PROPUEST[A-Z]*|PROP(?=[\\s.:#°º\\-]|\\d)|PF)`;
 
 // Conector flexible entre la palabra clave y el número de propuesta.
 // Permite letras, espacios, N°/N./Nº, dos puntos, #, guiones y el separador "|"
