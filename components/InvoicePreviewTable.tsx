@@ -84,7 +84,12 @@ export default function InvoicePreviewTable({ rows }: Props) {
   if (!rows.length) {
     return (
       <div className="empty">
-        Sube archivos XML para ver el resultado del análisis.
+        <span className="empty-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z" />
+          </svg>
+        </span>
+        Aún no hay datos. Sube archivos XML para ver el análisis aquí.
       </div>
     );
   }
@@ -100,26 +105,28 @@ export default function InvoicePreviewTable({ rows }: Props) {
         Mostrando {start + 1}–{Math.min(end, rows.length)} de {rows.length}{' '}
         facturas
       </div>
-      <table>
-        <thead>
-          <tr>
-            {COLS.map((c) => (
-              <th key={c.key}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {pageRows.map((r, i) => (
-            <tr key={`${r.archivo}-${start + i}`}>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
               {COLS.map((c) => (
-                <td key={c.key} className={cellClass(r, c.key)}>
-                  {c.format ? c.format(r) : defaultFmt(r[c.key])}
-                </td>
+                <th key={c.key}>{c.label}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {pageRows.map((r, i) => (
+              <tr key={`${r.archivo}-${start + i}`}>
+                {COLS.map((c) => (
+                  <td key={c.key} className={cellClass(r, c.key)}>
+                    {c.format ? c.format(r) : defaultFmt(r[c.key])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {totalPages > 1 && (
         <div className="table-pagination">
           <button

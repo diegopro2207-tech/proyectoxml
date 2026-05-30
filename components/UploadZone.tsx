@@ -120,6 +120,19 @@ export default function UploadZone({ onFilesSelected, disabled }: Props) {
         onChange={handleInputChange}
       />
       <div className="upload-inner">
+        <span className="upload-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="M17 8l-5-5-5 5M12 3v12" />
+          </svg>
+        </span>
         <strong>Arrastra aquí una carpeta o archivos XML</strong>
         <span>o haz clic para seleccionar carpeta o archivos individuales</span>
         <small>
