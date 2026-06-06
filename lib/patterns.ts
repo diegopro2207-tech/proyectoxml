@@ -46,7 +46,7 @@ const N_PREFIX = `N[\\s\\-]?(?:[${NUM_CHARS}]\\.?|\\.)`;
 //   (evita capturar PROPIEDAD, PROPORCIONAL, etc.).
 // - PF para el formato corto ("PF 26414" o "PF26414").
 const PROPUESTA_PHRASE =
-  `(?:PROPOSIC[A-Z]*|PROPOPOSIC[A-Z]*|PROPOSC[A-Z]*|PROPOSIS[A-Z]*|PROPUEST[A-Z]*|PROP(?=[\\s.:#°º\\-]|\\d)|PF)`;
+  `(?:PROPOSIC[A-Z]*|PROPOPOSIC[A-Z]*|PROPOSC[A-Z]*|PROPOSIS[A-Z]*|PREPOSIC[A-Z]*|PROPUEST[A-Z]*|PROP(?=[\\s.:#°º\\-]|\\d)|PF)`;
 
 // Conector flexible entre la palabra clave y el número de propuesta.
 // Permite letras, espacios, N°/N./Nº, dos puntos, #, guiones y el separador "|"
@@ -79,7 +79,7 @@ export function findPropuestaCode(text: string): string {
 
   // Si no hay indicio de propuesta en el texto, no detectamos nada.
   // (El patrón estricto de PROPUESTA_PHRASE hace el filtrado fino.)
-  if (!/\bPROP/.test(normalized) && !/\bPF/.test(normalized)) return '';
+  if (!/\bPROP/.test(normalized) && !/\bPREPOSIC/.test(normalized) && !/\bPF/.test(normalized)) return '';
 
   // 1) Intentar capturar con marcador FOLIO alfanumérico cercano.
   const marcado = normalized.match(FOLIO_MARCADO_PATTERN);
