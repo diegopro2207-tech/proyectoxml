@@ -126,25 +126,15 @@ export default function HomePage() {
               <span className="brand-name">
                 FacturaScan <span className="brand-badge">V2</span>
               </span>
-              <span className="brand-sub">Procesador de DTEs · Sovos</span>
             </span>
           </div>
           <span className="app-bar-spacer" />
-          <span className="app-bar-meta">
-            <span className="dot" aria-hidden="true" />
-            Procesamiento 100% local
-          </span>
         </div>
       </header>
 
       <main>
         <div className="page-head">
           <h1>Procesar facturas XML</h1>
-          <p>
-            Sube XML de DTEs y detecta automáticamente el N° de propuesta —
-            aunque venga en la RazonRef o en la descripción del ítem — junto con
-            provisión, VIN, CustomerCare y reembolso. Exporta todo a Excel.
-          </p>
         </div>
 
         <UploadZone onFilesSelected={handleFiles} disabled={processing} />

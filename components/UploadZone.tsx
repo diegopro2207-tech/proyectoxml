@@ -135,10 +135,7 @@ export default function UploadZone({ onFilesSelected, disabled }: Props) {
         </span>
         <strong>Arrastra aquí una carpeta o archivos XML</strong>
         <span>o haz clic para seleccionar carpeta o archivos individuales</span>
-        <small>
-          Soporta 9.000+ archivos — todo se procesa localmente, nada sale de tu
-          computador
-        </small>
+        <small>Soporta 10.000+ archivos</small>
       </div>
     </div>
   );
