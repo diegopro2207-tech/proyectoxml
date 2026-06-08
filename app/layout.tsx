@@ -9,9 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'FacturaScan V2 — Procesador XML Sovos',
-  description:
-    'Procesa XML de DTEs chilenos (Sovos), detecta propuestas y VIN, y exporta a Excel.',
+  title: 'NexaProyects',
+  description: 'Proyectos de NexaProyects.',
 };
 
 export default function RootLayout({
