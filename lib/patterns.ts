@@ -125,6 +125,11 @@ export function findPropuestaCode(text: string): string {
 
 const CODIGO_PROVISION_REGEX = /\b([A-Z]{3,5}\d{4,8}[A-Z]\d{3,6}[A-Z]?)\b/;
 
+// Códigos PAC: prefijo PAC + dígitos + 1-2 letras + dígitos (+ letra opcional).
+// Ej: PAC100034FQ126, PAC103337JQ126, PAC100058PQ126. (Dos letras en el medio,
+// por eso el regex clásico de arriba no los captura.)
+const CODIGO_PROVISION_PAC_REGEX = /\b(PAC\d{4,8}[A-Z]{1,2}\d{2,6}[A-Z]?)\b/;
+
 // Variante para códigos que TERMINAN en BVN (o cuyo segmento BVN aparece al final
 // con dígitos detrás), p.ej. "100012P0326BVN", "20P0226BVN". Cuentan como provisión.
 const CODIGO_PROVISION_BVN_END_REGEX =
@@ -137,6 +142,10 @@ const CODIGO_PROVISION_BVN_ANY_REGEX = /\b([A-Z0-9]*\d{3,}[A-Z0-9]*BVN[A-Z0-9]*)
 export function findCodigoProvision(text: string): string {
   if (!text) return '';
   const normalized = normalizeForSearch(text);
+
+  // 0) Códigos PAC (estructura propia con 2 letras intermedias).
+  const mPac = normalized.match(CODIGO_PROVISION_PAC_REGEX);
+  if (mPac) return mPac[1];
 
   // 1) Patrón clásico (prefijo de letras tipo BVN, CXCL, PSCL).
   const m = normalized.match(CODIGO_PROVISION_REGEX);
@@ -237,20 +246,24 @@ export function detectConceptoFromGlosa(text: string): string {
   if (!text) return '';
   const t = normalizeForSearch(text);
 
-  // "Bono marca" → APORTE BONO MARCA
-  if (/\bBONO\s+MARCA\b/.test(t)) return 'APORTE BONO MARCA';
+  // "Bono marca" / "Bonificación (de) marca" → APORTE BONO MARCA.
+  // Va PRIMERO: si dice "marca" explícitamente, gana aunque traiga un código
+  // BVN (ej. "BONO MARCA STELLANTIS - OC 100060FI202601BVN" → APORTE BONO MARCA).
+  if (/\b(?:BONO|BONIFICAC[A-Z]*)\s+(?:DE\s+)?MARCA\b/.test(t)) {
+    return 'APORTE BONO MARCA';
+  }
 
   // "Aporte PAC" → APORTE PAC
   if (/\bAPORTE\s+PAC\b/.test(t)) return 'APORTE PAC';
 
-  // El resto de reglas requieren la raíz "BONIFICAC" (bonificación/bonificaciones).
-  const hasBonifica = /\bBONIFICAC/.test(t);
-  if (hasBonifica) {
+  // El resto aplica tanto a "BONIFICACION..." como a "BONO..." (son equivalentes).
+  const hasBono = /\bBONIFICAC/.test(t) || /\bBONO\b/.test(t);
+  if (hasBono) {
     // Calidad — incluye "meta de calidad". Va primero (gana sobre comercial/VN).
     if (/\bCALIDAD\b/.test(t)) return 'BONIFICACION CALIDAD';
 
-    // Financiamiento
-    if (/\bFINANCIAMIENTO\b/.test(t)) return 'BONIFICACION FINANCIAMIENTO';
+    // Financiamiento ("financiamiento" / "de financiamiento").
+    if (/\bFINANCIAM/.test(t)) return 'BONIFICACION FINANCIAMIENTO';
 
     // Comercial / P&S / cumplimiento de objetivos
     if (
