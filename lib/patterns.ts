@@ -71,26 +71,45 @@ const FOLIO_MARCADO_PATTERN = new RegExp(
   'i'
 );
 
+// Un código de propuesta válido es NUMÉRICO y empieza con 2 o 3
+// (tras eliminar ceros a la izquierda). Cualquier otro inicio se descarta.
+function isValidPropuestaNumber(code: string): boolean {
+  return /^[23]\d{2,}$/.test(code);
+}
+
+// "Operacion leasing <numero>" — el número adyacente ES el código de propuesta.
+const LEASING_PATTERN = /\bOPERACION\s+LEASING\b[^\d]{0,25}?(\d[\d.]{2,14})\b/;
+
 // Busca el código de propuesta en el texto.
-// Retorna el valor (numérico con ceros eliminados, o alfanumérico) o "".
+// Retorna el valor numérico (ceros a la izquierda eliminados) o "".
 export function findPropuestaCode(text: string): string {
   if (!text) return '';
   const normalized = normalizeForSearch(text);
+
+  // 0) "Operacion leasing N° X": el número adyacente es el código (sin filtro 2/3).
+  const leasing = normalized.match(LEASING_PATTERN);
+  if (leasing && leasing[1]) {
+    const c = normalizeNFolio(leasing[1]);
+    if (/\d{3,}/.test(c)) return c;
+  }
 
   // Si no hay indicio de propuesta en el texto, no detectamos nada.
   // (El patrón estricto de PROPUESTA_PHRASE hace el filtrado fino.)
   if (!/\bPROP/.test(normalized) && !/\bPREPOSIC/.test(normalized) && !/\bPF/.test(normalized)) return '';
 
-  // 1) Intentar capturar con marcador FOLIO alfanumérico cercano.
+  // 1) Marcador FOLIO alfanumérico (solo si resulta ser numérico 2/3 válido).
   const marcado = normalized.match(FOLIO_MARCADO_PATTERN);
-  if (marcado && marcado[1]) return marcado[1];
+  if (marcado && marcado[1]) {
+    const c = normalizeNFolio(marcado[1]);
+    if (isValidPropuestaNumber(c)) return c;
+  }
 
-  // 2) Intentar capturar número después de "PROPOSICION/PROPUESTA".
+  // 2) Número después de "PROPOSICION/PROPUESTA". Debe empezar con 2 o 3.
   for (const re of PROPUESTA_NUM_PATTERNS) {
     const m = normalized.match(re);
     if (m && m[1]) {
       const cleaned = normalizeNFolio(m[1]);
-      if (/\d{3,}/.test(cleaned)) return cleaned;
+      if (isValidPropuestaNumber(cleaned)) return cleaned;
     }
   }
 
@@ -203,4 +222,50 @@ export function detectCustomerCare(text: string): boolean {
 export function detectReembolso(text: string): boolean {
   if (!text) return false;
   return /reembolso|\breem\s*\.?\s*mant|\bflex\s*-?\s*care|\bmant\s+flex/i.test(text);
+}
+
+// ─── Concepto (clasificación por glosa) ──────────────────────────────────────
+// Devuelve la categoría de Concepto basándose SOLO en el texto de la glosa.
+// Las reglas que dependen de otras columnas (CustomerCare, Reembolso,
+// Codigo de Propuesta) se aplican en el analizador, con mayor prioridad.
+
+// Marcas de vehículo: una bonificación de marca cuenta como "BONIFICACION VN".
+const MARCA_REGEX =
+  /\b(OPEL|PEUGEOT|CITROEN|JEEP|RAM|FIAT|LEAP\s?MOTOR|DS)\b/;
+
+export function detectConceptoFromGlosa(text: string): string {
+  if (!text) return '';
+  const t = normalizeForSearch(text);
+
+  // "Bono marca" → APORTE BONO MARCA
+  if (/\bBONO\s+MARCA\b/.test(t)) return 'APORTE BONO MARCA';
+
+  // "Aporte PAC" → APORTE PAC
+  if (/\bAPORTE\s+PAC\b/.test(t)) return 'APORTE PAC';
+
+  // El resto de reglas requieren la raíz "BONIFICAC" (bonificación/bonificaciones).
+  const hasBonifica = /\bBONIFICAC/.test(t);
+  if (hasBonifica) {
+    // Calidad — incluye "meta de calidad". Va primero (gana sobre comercial/VN).
+    if (/\bCALIDAD\b/.test(t)) return 'BONIFICACION CALIDAD';
+
+    // Financiamiento
+    if (/\bFINANCIAMIENTO\b/.test(t)) return 'BONIFICACION FINANCIAMIENTO';
+
+    // Comercial / P&S / cumplimiento de objetivos
+    if (
+      /\bCOMERCIAL\b/.test(t) ||
+      /P\s*&\s*S/.test(t) ||
+      /CUMPLIMIENTO\s+DE\s+OBJETIVOS/.test(t)
+    ) {
+      return 'BONIFICACION COMERCIAL';
+    }
+
+    // VN: "Vn", código que contiene "BVN", o nombre de marca.
+    if (/\bVN\b/.test(t) || /BVN/.test(t) || MARCA_REGEX.test(t)) {
+      return 'BONIFICACION VN';
+    }
+  }
+
+  return '';
 }

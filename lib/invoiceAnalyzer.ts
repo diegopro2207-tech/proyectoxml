@@ -1,6 +1,7 @@
 import type { AnalyzedInvoice } from '@/types/invoice';
 import type { ParsedXmlPayload } from './xmlParser';
 import {
+  detectConceptoFromGlosa,
   detectCustomerCare,
   detectPropuestaKeyword,
   detectReembolso,
@@ -8,6 +9,24 @@ import {
   findCodigoProvision,
   findPropuestaCode,
 } from './patterns';
+
+// Determina el "Concepto" de la factura.
+// Prioridad (la primera que aplica gana):
+//   1. Hay Codigo de Propuesta        → PROVISION GARANTIAS
+//   2. CustomerCare = "Sí"            → APORTE CUSTOMER CARE
+//   3. Reembolso = "Sí"               → REEMBOLSO MANTENCIONES PREPAGADAS OPEL FLEX CARE
+//   4. Reglas por glosa (bonificaciones, bono marca, aporte PAC, etc.)
+function detectConcepto(
+  combined: string,
+  customerCare: string,
+  reembolso: string,
+  codigoPropuesta: string
+): string {
+  if (codigoPropuesta) return 'PROVISION GARANTIAS';
+  if (customerCare) return 'APORTE CUSTOMER CARE';
+  if (reembolso) return 'REEMBOLSO MANTENCIONES PREPAGADAS OPEL FLEX CARE';
+  return detectConceptoFromGlosa(combined);
+}
 
 // Busca el Código de Propuesta en este orden:
 //   1) RazonRef del 801 (motivo de la orden de compra).
@@ -69,6 +88,13 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
   const customerCare = detectCustomerCare(combined) ? 'Sí' : '';
   const reembolso = detectReembolso(combined) ? 'Sí' : '';
 
+  const concepto = detectConcepto(
+    combined,
+    customerCare,
+    reembolso,
+    codigoPropuesta
+  );
+
   return {
     ...payload.raw,
     codigoPropuesta,
@@ -77,6 +103,7 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
     vinDetectado: vins,
     customerCare,
     reembolso,
+    concepto,
   };
 }
 

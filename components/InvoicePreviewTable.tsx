@@ -48,6 +48,7 @@ const COLS: ColDef[] = [
   { key: 'referencias1', label: 'Referencias1' },
   { key: 'codigoPropuesta', label: 'Codigo de Propuesta' },
   { key: 'codigoProvision', label: 'Codigo Provision' },
+  { key: 'concepto', label: 'Concepto' },
   { key: 'propuestaDetectada', label: 'PropuestaDetectada' },
   {
     key: 'vinDetectado',
@@ -66,6 +67,7 @@ function cellClass(row: AnalyzedInvoice, key: keyof AnalyzedInvoice): string {
   if (key === 'reembolso' && row.reembolso) return 'cell info';
   if (key === 'codigoPropuesta' && row.codigoPropuesta) return 'cell ok';
   if (key === 'codigoProvision' && row.codigoProvision) return 'cell ok';
+  if (key === 'concepto' && row.concepto) return 'cell info';
   return 'cell';
 }
 

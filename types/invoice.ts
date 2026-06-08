@@ -39,6 +39,9 @@ export interface AnalyzedInvoice extends RawInvoiceData {
   customerCare: string;
   // "Sí" si se detecta Reembolso / Flex Care / Mantención Flex Care.
   reembolso: string;
+  // Concepto: clasificación de la factura (BONIFICACION VN, APORTE PAC,
+  // PROVISION GARANTIAS, APORTE CUSTOMER CARE, etc.). Ver invoiceAnalyzer.
+  concepto: string;
 }
 
 export type DetectionSource =
