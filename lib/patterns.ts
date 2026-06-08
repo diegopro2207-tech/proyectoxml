@@ -246,26 +246,29 @@ export function detectConceptoFromGlosa(text: string): string {
   if (!text) return '';
   const t = normalizeForSearch(text);
 
-  // "Bono marca" / "Bonificación (de) marca" → APORTE BONO MARCA.
-  // Va PRIMERO: si dice "marca" explícitamente, gana aunque traiga un código
-  // BVN (ej. "BONO MARCA STELLANTIS - OC 100060FI202601BVN" → APORTE BONO MARCA).
-  if (/\b(?:BONO|BONIFICAC[A-Z]*)\s+(?:DE\s+)?MARCA\b/.test(t)) {
+  // Hay contexto de "bono" si aparece BONO, BONOS, BONIFICACION o BONIFICACIONES.
+  const hasBono = /\bBONOS?\b/.test(t) || /\bBONIFICAC/.test(t);
+
+  // 1) "Bono(s)/Bonificación (de) marca" literal → APORTE BONO MARCA.
+  //    Gana incluso si trae código BVN
+  //    (ej. "BONO MARCA STELLANTIS - OC 100060FI202601BVN").
+  if (/\b(?:BONOS?|BONIFICAC[A-Z]*)\s+(?:DE\s+)?MARCA\b/.test(t)) {
     return 'APORTE BONO MARCA';
   }
 
-  // "Aporte PAC" → APORTE PAC
+  // 2) "Aporte PAC" → APORTE PAC
   if (/\bAPORTE\s+PAC\b/.test(t)) return 'APORTE PAC';
 
-  // El resto aplica tanto a "BONIFICACION..." como a "BONO..." (son equivalentes).
-  const hasBono = /\bBONIFICAC/.test(t) || /\bBONO\b/.test(t);
+  // El resto aplica tanto a "BONIFICACION..." como a "BONO/BONOS..." (equivalentes).
   if (hasBono) {
-    // Calidad — incluye "meta de calidad". Va primero (gana sobre comercial/VN).
+    // 3) Calidad — incluye "meta de calidad".
     if (/\bCALIDAD\b/.test(t)) return 'BONIFICACION CALIDAD';
 
-    // Financiamiento ("financiamiento" / "de financiamiento").
+    // 4) Financiamiento ("financiamiento" / "de financiamiento"). Gana sobre
+    //    marca/VN: "Bonos de Financiamiento VN Ram" → FINANCIAMIENTO.
     if (/\bFINANCIAM/.test(t)) return 'BONIFICACION FINANCIAMIENTO';
 
-    // Comercial / P&S / cumplimiento de objetivos
+    // 5) Comercial / P&S / cumplimiento de objetivos.
     if (
       /\bCOMERCIAL\b/.test(t) ||
       /P\s*&\s*S/.test(t) ||
@@ -274,8 +277,19 @@ export function detectConceptoFromGlosa(text: string): string {
       return 'BONIFICACION COMERCIAL';
     }
 
-    // VN: "Vn", código que contiene "BVN", o nombre de marca.
-    if (/\bVN\b/.test(t) || /BVN/.test(t) || MARCA_REGEX.test(t)) {
+    // 6) "Bono TMP" / "Bonos TMP" → APORTE BONO MARCA.
+    if (/\bTMP\b/.test(t)) return 'APORTE BONO MARCA';
+
+    // 7) Marca de vehículo (Opel, Peugeot, Citroën, Jeep, Ram, Fiat,
+    //    Leap Motor, DS):
+    //      - con código BVN  → BONIFICACION VN
+    //      - sin código BVN  → APORTE BONO MARCA
+    if (MARCA_REGEX.test(t)) {
+      return /BVN/.test(t) ? 'BONIFICACION VN' : 'APORTE BONO MARCA';
+    }
+
+    // 8) "VN" suelto o código BVN sin marca → BONIFICACION VN.
+    if (/\bVN\b/.test(t) || /BVN/.test(t)) {
       return 'BONIFICACION VN';
     }
   }
