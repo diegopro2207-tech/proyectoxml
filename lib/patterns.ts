@@ -280,7 +280,11 @@ export function detectConceptoFromGlosa(text: string): string {
     // 6) "Bono TMP" / "Bonos TMP" → APORTE BONO MARCA.
     if (/\bTMP\b/.test(t)) return 'APORTE BONO MARCA';
 
-    // 7) Marca de vehículo (Opel, Peugeot, Citroën, Jeep, Ram, Fiat,
+    // 7) "VN" literal → BONIFICACION VN. Gana sobre la marca cuando no hay BVN
+    //    (ej. "Bonificación VN Fiat" → BONIFICACION VN).
+    if (/\bVN\b/.test(t)) return 'BONIFICACION VN';
+
+    // 8) Marca de vehículo (Opel, Peugeot, Citroën, Jeep, Ram, Fiat,
     //    Leap Motor, DS):
     //      - con código BVN  → BONIFICACION VN
     //      - sin código BVN  → APORTE BONO MARCA
@@ -288,10 +292,8 @@ export function detectConceptoFromGlosa(text: string): string {
       return /BVN/.test(t) ? 'BONIFICACION VN' : 'APORTE BONO MARCA';
     }
 
-    // 8) "VN" suelto o código BVN sin marca → BONIFICACION VN.
-    if (/\bVN\b/.test(t) || /BVN/.test(t)) {
-      return 'BONIFICACION VN';
-    }
+    // 9) Código BVN sin marca ni "VN" → BONIFICACION VN.
+    if (/BVN/.test(t)) return 'BONIFICACION VN';
   }
 
   return '';
