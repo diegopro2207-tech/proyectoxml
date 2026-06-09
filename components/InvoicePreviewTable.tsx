@@ -61,6 +61,7 @@ const COLS: ColDef[] = [
         ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
         : '',
   },
+  { key: 'facturaNC', label: 'Factura De NC' },
   { key: 'referencias1', label: 'Referencias1' },
 ];
 

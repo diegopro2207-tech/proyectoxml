@@ -136,6 +136,26 @@ function collectRefsNo801(referencias: any[]): string {
   return parts.join(' | ');
 }
 
+// Primera referencia cuyo TpoDocRef NO es 801. Útil para Notas de Crédito
+// (TipoDTE 61), donde apunta a la factura original (ej. TpoDocRef=33).
+function firstRefNo801(referencias: any[]): {
+  tipo: string;
+  folio: string;
+  razon: string;
+} {
+  for (const ref of referencias) {
+    const tipo = toStr(ref?.TpoDocRef);
+    if (tipo && tipo !== '801') {
+      return {
+        tipo,
+        folio: toStr(ref?.FolioRef),
+        razon: toStr(ref?.RazonRef),
+      };
+    }
+  }
+  return { tipo: '', folio: '', razon: '' };
+}
+
 // Elimina prefijos del tipo "AUTO@", "A@" del texto del ítem.
 function stripSystemPrefix(text: string): string {
   return text.replace(/^[A-Za-z]{1,6}@/, '').trim();
@@ -178,6 +198,8 @@ export interface ParsedXmlPayload {
     dscItem: string;
     // Texto concatenado de las referencias que no son 801.
     referencias1: string;
+    // RazonRef de la primera referencia no-801 (motivo de la NC en TipoDTE 61).
+    razonRefNC: string;
   };
 }
 
@@ -197,6 +219,7 @@ export function parseInvoiceXml(
         nmbItem: '',
         dscItem: '',
         referencias1: '',
+        razonRefNC: '',
       },
     };
   }
@@ -212,7 +235,13 @@ export function parseInvoiceXml(
 
   const ref801 = findRef801(referencias);
   const referencias1 = collectRefsNo801(referencias);
+  const refNC = firstRefNo801(referencias);
   const dets = collectDetalleTexts(detalles);
+
+  // Factura De NC: "TpoDocRef-FolioRef" de la primera referencia no-801,
+  // ej: "33-21626". Vacío si no hay referencia documental.
+  const facturaNC =
+    refNC.tipo && refNC.folio ? `${refNC.tipo}-${refNC.folio}` : '';
 
   const tipoDTE = toStr(idDoc.TipoDTE);
   const folioFactura = toStr(idDoc.Folio);
@@ -243,6 +272,7 @@ export function parseInvoiceXml(
     numeroOC: ref801.folioRef,
     motivoOriginal: ref801.razonRef,
     descripcionItemsOriginal: dets.glosasPorItem,
+    facturaNC,
     referencias1,
   };
 
@@ -254,6 +284,7 @@ export function parseInvoiceXml(
       nmbItem: dets.nmbItem.join(' | '),
       dscItem: dets.dscItem.join(' | '),
       referencias1,
+      razonRefNC: refNC.razon,
     },
   };
 }
@@ -277,6 +308,7 @@ function emptyRaw(fileName: string): RawInvoiceData {
     numeroOC: '',
     motivoOriginal: '',
     descripcionItemsOriginal: '',
+    facturaNC: '',
     referencias1: '',
   };
 }

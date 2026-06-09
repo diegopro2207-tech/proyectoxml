@@ -10,8 +10,15 @@ import {
   findPropuestaCode,
 } from './patterns';
 
+// Limpia la RazonRef de una NC: quita un prefijo "número:" al inicio.
+// "3: Corrige Monto Documento Ref." → "Corrige Monto Documento Ref."
+function cleanRazonNC(razon: string): string {
+  return razon.replace(/^\s*\d+\s*:\s*/, '').trim();
+}
+
 // Determina el "Concepto" de la factura.
 // Prioridad (la primera que aplica gana):
+//   0. TipoDTE = 61 (Nota de Crédito) → la RazonRef de la referencia va a Concepto
 //   1. Hay Codigo de Propuesta        → PROVISION GARANTIAS
 //   2. CustomerCare = "Sí"            → APORTE CUSTOMER CARE
 //   3. Reembolso = "Sí"               → REEMBOLSO MANTENCIONES PREPAGADAS OPEL FLEX CARE
@@ -20,8 +27,14 @@ function detectConcepto(
   combined: string,
   customerCare: string,
   reembolso: string,
-  codigoPropuesta: string
+  codigoPropuesta: string,
+  tipoDTE: string,
+  razonRefNC: string
 ): string {
+  // Nota de Crédito: el motivo de la referencia (RazonRef) es el Concepto.
+  if (tipoDTE === '61' && razonRefNC) {
+    return cleanRazonNC(razonRefNC);
+  }
   if (codigoPropuesta) return 'PROVISION GARANTIAS';
   if (customerCare) return 'APORTE CUSTOMER CARE';
   if (reembolso) return 'REEMBOLSO MANTENCIONES PREPAGADAS OPEL FLEX CARE';
@@ -92,7 +105,9 @@ export function analyzeInvoice(payload: ParsedXmlPayload): AnalyzedInvoice {
     combined,
     customerCare,
     reembolso,
-    codigoPropuesta
+    codigoPropuesta,
+    payload.raw.tipoDTE,
+    payload.fuentes.razonRefNC
   );
 
   return {

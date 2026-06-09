@@ -68,6 +68,7 @@ export const COLUMNS: ColumnDef[] = [
         ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
         : '',
   },
+  { key: 'facturaNC', header: 'Factura De NC', width: 16 },
   { key: 'referencias1', header: 'Referencias1', width: 60 },
 ];
 

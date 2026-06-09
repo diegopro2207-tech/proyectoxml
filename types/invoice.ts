@@ -23,6 +23,9 @@ export interface RawInvoiceData {
   motivoOriginal: string;
   // Glosas: NmbItem + DscItem de cada detalle, agrupadas.
   descripcionItemsOriginal: string;
+  // Factura De NC: "TpoDocRef-FolioRef" de la primera referencia no-801,
+  // ej: "33-21626". Pensado para Notas de Crédito (TipoDTE 61).
+  facturaNC: string;
   // Referencias1: TODO el texto de referencias cuyo TpoDocRef NO sea 801
   // (puede ser tipo 1, 802, HES, etc.). Se concatenan separadas con " | ".
   referencias1: string;
