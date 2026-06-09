@@ -209,35 +209,56 @@ export function findAllVINs(text: string): string[] {
   return Array.from(new Set(valid));
 }
 
-// ─── CustomerCare (reglas estrictas) ─────────────────────────────────────────
-// Marca "Sí" si:
-//   1. Aparece "Customer Care" o "CustomerCare" juntos (con o sin espacio/guion).
-//   2. Aparece "Care" junto a un "N° de caso" o "N de algo" + número.
-// NO marca si solo aparece "Care" o "Flex Care" sin esos contextos.
+// ─── CustomerCare ────────────────────────────────────────────────────────────
+// Marca "Sí" ante cualquiera de estos indicadores (texto normalizado a
+// mayúsculas, tolerante a acentos y palabras intermedias):
+//   - "Customer Care" / "CustomerCare" (tolera typo "Costumer").
+//   - "Care" + marcador "N° número".
+//   - "Aporte (relación) cliente".
+//   - "Caso N° X" / "Caso N X" / "Caso X".
+//   - "Pago VDR".
+//   - "Maria Elena" (Farias).
 
 export function detectCustomerCare(text: string): boolean {
   if (!text) return false;
+  const t = normalizeForSearch(text);
 
-  // 1) "Customer Care" o "CustomerCare" (con espacios/guiones opcionales).
-  if (/customer\s*-?\s*care/i.test(text)) return true;
+  // 1) Customer Care / CustomerCare — tolera typo "Costumer".
+  if (/C[OU]ST[OU]MER\s*-?\s*CARE/.test(t)) return true;
 
-  // 2) "Care" en el texto Y un marcador "N° X" (N de caso, N de algo) cerca.
-  //    Para evitar falsos positivos, requerimos que tanto "Care" como el
-  //    marcador "N° número" aparezcan en el mismo texto.
-  if (/\bcare\b/i.test(text)) {
-    const hasNumeroMarker = /N\s*[°ºo.]\s*\d{3,}|N[°ºo]\s*\d{3,}|N\.\s*\d{3,}/i.test(text);
-    if (hasNumeroMarker) return true;
+  // 2) "Care" + marcador "N° número".
+  if (
+    /\bCARE\b/.test(t) &&
+    /N\s*[°ºO.]\s*\d{3,}|N[°ºO]\s*\d{3,}|N\.\s*\d{3,}/.test(t)
+  ) {
+    return true;
   }
+
+  // 3) "Aporte (relación) cliente" (admite palabras intermedias).
+  if (/\bAPORTE\b(?:\s+\w+){0,3}\s+CLIENTE\b/.test(t)) return true;
+
+  // 4) "Caso" + número (Caso N° X, Caso N X, Caso X).
+  if (/\bCASO\b[^\d]{0,15}\d{2,}/.test(t)) return true;
+
+  // 5) "Pago VDR".
+  if (/\bPAGO\b[\sA-Z\-]{0,15}?\bVDR\b/.test(t)) return true;
+
+  // 6) "Maria Elena" (Farias).
+  if (/\bMARIA\s+ELENA\b/.test(t)) return true;
 
   return false;
 }
 
 // ─── Reembolso ───────────────────────────────────────────────────────────────
-// Marca "Sí" si aparece: reembolso, reem mant, flex care, mant flex care, o variantes.
+// Marca "Sí" si aparece: reembolso, reem mant, flex care, mant flex care, MPP,
+// "mantenciones pre-pagadas", o variantes.
 
 export function detectReembolso(text: string): boolean {
   if (!text) return false;
-  return /reembolso|\breem\s*\.?\s*mant|\bflex\s*-?\s*care|\bmant\s+flex/i.test(text);
+  const t = normalizeForSearch(text);
+  return /REEMBOLSO|\bREEM\s*\.?\s*MANT|\bFLEX\s*-?\s*CARE|\bMANT\s+FLEX|\bMPP\b|MANTENCIONES?\s*-?\s*PRE\s*-?\s*PAGADAS?/.test(
+    t
+  );
 }
 
 // ─── Concepto (clasificación por glosa) ──────────────────────────────────────
@@ -258,6 +279,11 @@ const BONO_MARCA_REGEX = new RegExp(
 export function detectConceptoFromGlosa(text: string): string {
   if (!text) return '';
   const t = normalizeForSearch(text);
+
+  // 0) "Animación (de) calidad" → ANIMACION CALIDAD (no depende de "bono").
+  if (/\bANIMACION\b(?:\s+\w+){0,3}\s+CALIDAD\b/.test(t)) {
+    return 'ANIMACION CALIDAD';
+  }
 
   // Contexto de "bono": BONO/BONOS, BONIF(.), BONIFICACION(ES) o typos como
   // BONIDICACION (D por F).
