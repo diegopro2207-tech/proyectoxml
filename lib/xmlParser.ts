@@ -238,16 +238,18 @@ export function parseInvoiceXml(
   const refNC = firstRefNo801(referencias);
   const dets = collectDetalleTexts(detalles);
 
-  // Factura De NC: "TpoDocRef-FolioRef" de la primera referencia no-801,
-  // ej: "33-21626". Vacío si no hay referencia documental.
-  const facturaNC =
-    refNC.tipo && refNC.folio ? `${refNC.tipo}-${refNC.folio}` : '';
-
   const tipoDTE = toStr(idDoc.TipoDTE);
   const folioFactura = toStr(idDoc.Folio);
   // Folio-SAP: concat de TipoDTE-FolioFactura, ej: "33-100729".
   const folioSAP =
     tipoDTE && folioFactura ? `${tipoDTE}-${folioFactura}` : '';
+
+  // Factura De NC: "TpoDocRef-FolioRef" de la primera referencia no-801,
+  // ej: "33-21626". Solo aplica a Notas de Crédito (TipoDTE 61).
+  const facturaNC =
+    tipoDTE === '61' && refNC.tipo && refNC.folio
+      ? `${refNC.tipo}-${refNC.folio}`
+      : '';
 
   const rutEmisor = toStr(emisor.RUTEmisor);
   // RUT+Folio: concat directo rutEmisor + folioFactura, ej: "96928530-41024136".
