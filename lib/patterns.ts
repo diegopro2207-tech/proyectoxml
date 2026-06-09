@@ -249,22 +249,30 @@ export function detectReembolso(text: string): boolean {
 const MARCA_REGEX =
   /\b(OPEL|PEUGEOT|CITROEN|JEEP|RAM|FIAT|LEAP\s?MOTOR|DS)\b/;
 
+// Raíz de "bono" tolerante a abreviaturas y typos: BONO, BONOS, BONIF, BONIF.,
+// BONIFICACION, BONIFICACIONES, e incluso "BONIDICACION" (typo D por F).
+const BONO_MARCA_REGEX = new RegExp(
+  `\\b(?:BONOS?|BONIF[A-Z]*|BONI[A-Z]*CAC[A-Z]*)\\s+(?:DE\\s+)?MARCA\\b`
+);
+
 export function detectConceptoFromGlosa(text: string): string {
   if (!text) return '';
   const t = normalizeForSearch(text);
 
-  // Hay contexto de "bono" si aparece BONO, BONOS, BONIFICACION o BONIFICACIONES.
-  const hasBono = /\bBONOS?\b/.test(t) || /\bBONIFICAC/.test(t);
+  // Contexto de "bono": BONO/BONOS, BONIF(.), BONIFICACION(ES) o typos como
+  // BONIDICACION (D por F).
+  const hasBono =
+    /\bBONOS?\b/.test(t) || /\bBONIF/.test(t) || /\bBONI[A-Z]*CAC/.test(t);
 
   // 1) "Bono(s)/Bonificación (de) marca" literal → APORTE BONO MARCA.
   //    Gana incluso si trae código BVN
   //    (ej. "BONO MARCA STELLANTIS - OC 100060FI202601BVN").
-  if (/\b(?:BONOS?|BONIFICAC[A-Z]*)\s+(?:DE\s+)?MARCA\b/.test(t)) {
+  if (BONO_MARCA_REGEX.test(t)) {
     return 'APORTE BONO MARCA';
   }
 
-  // 2) "Aporte PAC" → APORTE PAC
-  if (/\bAPORTE\s+PAC\b/.test(t)) return 'APORTE PAC';
+  // 2) "Aporte PAC" → APORTE PAC. Tolera el typo "APORTE PC" (sin la A).
+  if (/\bAPORTE\s+PA?C\b/.test(t)) return 'APORTE PAC';
 
   // El resto aplica tanto a "BONIFICACION..." como a "BONO/BONOS..." (equivalentes).
   if (hasBono) {
@@ -275,10 +283,10 @@ export function detectConceptoFromGlosa(text: string): string {
     //    marca/VN: "Bonos de Financiamiento VN Ram" → FINANCIAMIENTO.
     if (/\bFINANCIAM/.test(t)) return 'BONIFICACION FINANCIAMIENTO';
 
-    // 5) Comercial / P&S / cumplimiento de objetivos.
+    // 5) Comercial: "COMERCIAL", "P&S"/"PS"/"P S", o "cumplimiento de objetivos".
     if (
       /\bCOMERCIAL\b/.test(t) ||
-      /P\s*&\s*S/.test(t) ||
+      /\bP\s*&?\s*S\b/.test(t) ||
       /CUMPLIMIENTO\s+DE\s+OBJETIVOS/.test(t)
     ) {
       return 'BONIFICACION COMERCIAL';
