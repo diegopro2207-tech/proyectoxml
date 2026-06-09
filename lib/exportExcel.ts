@@ -39,6 +39,7 @@ export const COLUMNS: ColumnDef[] = [
     width: 16,
   },
   { key: 'rutEmisor', header: 'RUTEmisor' },
+  { key: 'rutFolio', header: 'RUT+Folio', width: 22 },
   { key: 'razonSocialEmisor', header: 'RazonSocialEmisor', width: 35 },
   {
     key: 'montoExento',
@@ -50,11 +51,13 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'montoTotal', header: 'MontoTotal', format: (r) => r.montoTotal ?? '' },
   { key: 'numeroOC', header: 'Numero de OC', width: 18 },
   { key: 'motivoOriginal', header: 'MotivoOriginal', width: 50 },
+  // Orden desde Glosas en adelante:
   { key: 'descripcionItemsOriginal', header: 'Glosas Items', width: 60 },
-  { key: 'referencias1', header: 'Referencias1', width: 60 },
+  { key: 'concepto', header: 'Concepto', width: 32 },
+  { key: 'customerCare', header: 'CustomerCare' },
+  { key: 'reembolso', header: 'Reembolso' },
   { key: 'codigoPropuesta', header: 'Codigo de Propuesta', width: 18 },
   { key: 'codigoProvision', header: 'Codigo Provision', width: 22 },
-  { key: 'concepto', header: 'Concepto', width: 32 },
   { key: 'propuestaDetectada', header: 'PropuestaDetectada', width: 35 },
   {
     key: 'vinDetectado',
@@ -65,8 +68,7 @@ export const COLUMNS: ColumnDef[] = [
         ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
         : '',
   },
-  { key: 'customerCare', header: 'CustomerCare' },
-  { key: 'reembolso', header: 'Reembolso' },
+  { key: 'referencias1', header: 'Referencias1', width: 60 },
 ];
 
 export function exportInvoicesToExcel(

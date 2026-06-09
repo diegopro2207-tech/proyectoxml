@@ -6,6 +6,9 @@ export interface RawInvoiceData {
   folioSAP: string;
   fechaEmision: string;
   rutEmisor: string;
+  // RUT+Folio: concatenación directa rutEmisor + folioFactura,
+  // ej: "96928530-4" + "1024136" = "96928530-41024136".
+  rutFolio: string;
   razonSocialEmisor: string;
   rutReceptor: string;
   razonSocialReceptor: string;

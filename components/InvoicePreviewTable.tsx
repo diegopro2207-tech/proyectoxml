@@ -25,6 +25,7 @@ const COLS: ColDef[] = [
     format: (r) => formatDateDMY(r.fechaEmision),
   },
   { key: 'rutEmisor', label: 'RUTEmisor' },
+  { key: 'rutFolio', label: 'RUT+Folio' },
   { key: 'razonSocialEmisor', label: 'RazonSocialEmisor' },
   {
     key: 'montoExento',
@@ -44,11 +45,13 @@ const COLS: ColDef[] = [
   },
   { key: 'numeroOC', label: 'Numero de OC' },
   { key: 'motivoOriginal', label: 'MotivoOriginal' },
+  // Orden desde Glosas en adelante:
   { key: 'descripcionItemsOriginal', label: 'Glosas Items' },
-  { key: 'referencias1', label: 'Referencias1' },
+  { key: 'concepto', label: 'Concepto' },
+  { key: 'customerCare', label: 'CustomerCare' },
+  { key: 'reembolso', label: 'Reembolso' },
   { key: 'codigoPropuesta', label: 'Codigo de Propuesta' },
   { key: 'codigoProvision', label: 'Codigo Provision' },
-  { key: 'concepto', label: 'Concepto' },
   { key: 'propuestaDetectada', label: 'PropuestaDetectada' },
   {
     key: 'vinDetectado',
@@ -58,8 +61,7 @@ const COLS: ColDef[] = [
         ? r.vinDetectado.map((v) => `VIN ${v}`).join(' | ')
         : '',
   },
-  { key: 'customerCare', label: 'CustomerCare' },
-  { key: 'reembolso', label: 'Reembolso' },
+  { key: 'referencias1', label: 'Referencias1' },
 ];
 
 function cellClass(row: AnalyzedInvoice, key: keyof AnalyzedInvoice): string {

@@ -220,13 +220,19 @@ export function parseInvoiceXml(
   const folioSAP =
     tipoDTE && folioFactura ? `${tipoDTE}-${folioFactura}` : '';
 
+  const rutEmisor = toStr(emisor.RUTEmisor);
+  // RUT+Folio: concat directo rutEmisor + folioFactura, ej: "96928530-41024136".
+  const rutFolio =
+    rutEmisor && folioFactura ? `${rutEmisor}${folioFactura}` : '';
+
   const raw: RawInvoiceData = {
     archivo: fileName,
     tipoDTE,
     folioFactura,
     folioSAP,
     fechaEmision: toStr(idDoc.FchEmis),
-    rutEmisor: toStr(emisor.RUTEmisor),
+    rutEmisor,
+    rutFolio,
     razonSocialEmisor: toStr(emisor.RznSoc ?? emisor.RznSocEmisor),
     rutReceptor: toStr(receptor.RUTRecep),
     razonSocialReceptor: toStr(receptor.RznSocRecep),
@@ -260,6 +266,7 @@ function emptyRaw(fileName: string): RawInvoiceData {
     folioSAP: '',
     fechaEmision: '',
     rutEmisor: '',
+    rutFolio: '',
     razonSocialEmisor: '',
     rutReceptor: '',
     razonSocialReceptor: '',
