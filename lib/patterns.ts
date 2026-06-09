@@ -125,10 +125,16 @@ export function findPropuestaCode(text: string): string {
 
 const CODIGO_PROVISION_REGEX = /\b([A-Z]{3,5}\d{4,8}[A-Z]\d{3,6}[A-Z]?)\b/;
 
-// Códigos PAC: prefijo PAC + dígitos + 1-2 letras + dígitos (+ letra opcional).
-// Ej: PAC100034FQ126, PAC103337JQ126, PAC100058PQ126. (Dos letras en el medio,
-// por eso el regex clásico de arriba no los captura.)
-const CODIGO_PROVISION_PAC_REGEX = /\b(PAC\d{4,8}[A-Z]{1,2}\d{2,6}[A-Z]?)\b/;
+// Códigos con prefijo conocido de provisión: ABF, ABM, BVN, CXC/CXCL, PSC/PSCL,
+// PAC. Captura el prefijo + dígitos + resto alfanumérico, SIN exigir una letra
+// intermedia. Así cubre variantes que el patrón clásico (que exige letra en el
+// medio) no toma:
+//   - PAC100034FQ126        (dos letras intermedias)
+//   - CXCL07000010326F      (sin letra intermedia, solo letra final)
+//   - PSCL07000510226F
+// y también las clásicas: BVN100012P0326, CXCL000020P0226, ABM100060R0126.
+const CODIGO_PROVISION_PREFIX_REGEX =
+  /\b((?:ABF|ABM|BVN|CXCL|CXC|PSCL|PSC|PAC)\d{4,}[A-Z0-9]{1,12})\b/;
 
 // Variante para códigos que TERMINAN en BVN (o cuyo segmento BVN aparece al final
 // con dígitos detrás), p.ej. "100012P0326BVN", "20P0226BVN". Cuentan como provisión.
@@ -143,11 +149,12 @@ export function findCodigoProvision(text: string): string {
   if (!text) return '';
   const normalized = normalizeForSearch(text);
 
-  // 0) Códigos PAC (estructura propia con 2 letras intermedias).
-  const mPac = normalized.match(CODIGO_PROVISION_PAC_REGEX);
-  if (mPac) return mPac[1];
+  // 0) Prefijo conocido (ABF, ABM, BVN, CXC/CXCL, PSC/PSCL, PAC). Toma también
+  //    los códigos sin letra intermedia (CXCL…F) que el clásico no captura.
+  const mPref = normalized.match(CODIGO_PROVISION_PREFIX_REGEX);
+  if (mPref) return mPref[1];
 
-  // 1) Patrón clásico (prefijo de letras tipo BVN, CXCL, PSCL).
+  // 1) Patrón clásico (cualquier prefijo de 3-5 letras con estructura completa).
   const m = normalized.match(CODIGO_PROVISION_REGEX);
   if (m) return m[1];
 
