@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function XmlscanLogin() {
@@ -13,7 +13,6 @@ export default function XmlscanLogin() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const from = params.get('from') || '/xmlscan';
 
@@ -31,13 +30,16 @@ function LoginForm() {
       const res = await fetch('/api/xmlscan-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: password.trim() }),
+        cache: 'no-store',
       });
       if (res.ok) {
-        // Sesión creada → navegar al proyecto.
-        router.push(from.startsWith('/xmlscan') ? from : '/xmlscan');
-        router.refresh();
-        return;
+        // Navegación dura: garantiza que el navegador envíe la cookie recién
+        // creada y que el middleware se evalúe de cero. Evita la carrera del
+        // router client-side (que a veces no veía la sesión y rebotaba al login).
+        const target = from.startsWith('/xmlscan') ? from : '/xmlscan';
+        window.location.assign(target);
+        return; // dejamos loading=true mientras carga la página destino
       }
       if (res.status === 500) {
         setError('El proyecto aún no tiene contraseña configurada en el servidor.');
@@ -45,9 +47,9 @@ function LoginForm() {
         setError('Contraseña incorrecta.');
       }
       setPassword('');
+      setLoading(false);
     } catch {
       setError('No se pudo verificar. Intenta de nuevo.');
-    } finally {
       setLoading(false);
     }
   }
