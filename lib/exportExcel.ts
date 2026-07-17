@@ -48,19 +48,14 @@ interface ColumnDef {
   wrap?: boolean;
 }
 
-// Orden de columnas:
-// 1) Identificación
-// 2) Fecha y emisor
-// 3) Montos (Exento, Neto, IVA, Total)
-// 4) Numero de OC y Motivo (de la referencia 801)
-// 5) Glosas
-// 6) Detecciones: Codigo de Propuesta, Codigo Provision, PropuestaDetectada, VIN
-// 7) Flags: CustomerCare, Reembolso
+// Orden de columnas del Excel (definido por el usuario). Se excluyen
+// MotivoOriginal y PropuestaDetectada.
 export const COLUMNS: ColumnDef[] = [
   { key: 'archivo', header: 'Archivo', width: 30 },
   { key: 'tipoDTE', header: 'TipoDTE' },
-  { key: 'folioFactura', header: 'FolioFactura' },
-  { key: 'folioSAP', header: 'Folio-SAP', width: 16 },
+  { key: 'rutEmisor', header: 'RUTEmisor' },
+  { key: 'razonSocialEmisor', header: 'RazonSocialEmisor', width: 35 },
+  { key: 'folioFactura', header: 'Folio' },
   {
     key: 'fechaEmision',
     header: 'FechaEmision',
@@ -68,20 +63,25 @@ export const COLUMNS: ColumnDef[] = [
     isDate: true,
     width: 16,
   },
-  { key: 'rutEmisor', header: 'RUTEmisor' },
-  { key: 'rutFolio', header: 'RUT+Folio', width: 22 },
-  { key: 'razonSocialEmisor', header: 'RazonSocialEmisor', width: 35 },
   {
     key: 'montoExento',
-    header: 'MontoExento',
+    header: 'Monto Exento',
     format: (r) => r.montoExento ?? '',
   },
-  { key: 'montoNeto', header: 'MontoNeto', format: (r) => r.montoNeto ?? '' },
-  { key: 'iva', header: 'IVA', format: (r) => r.iva ?? '' },
-  { key: 'montoTotal', header: 'MontoTotal', format: (r) => r.montoTotal ?? '' },
-  { key: 'numeroOC', header: 'Numero de OC', width: 18 },
-  { key: 'motivoOriginal', header: 'MotivoOriginal', width: 50 },
-  // Orden desde Glosas en adelante:
+  { key: 'montoNeto', header: 'Monto Neto', format: (r) => r.montoNeto ?? '' },
+  {
+    key: 'iva',
+    header: 'Monto IVA Recuperable',
+    format: (r) => r.iva ?? '',
+    width: 20,
+  },
+  {
+    key: 'montoTotal',
+    header: 'Monto Total',
+    format: (r) => r.montoTotal ?? '',
+  },
+  { key: 'folioSAP', header: 'Folio-SAP', width: 16 },
+  { key: 'rutFolio', header: 'RUT+Folio', width: 22 },
   {
     key: 'descripcionItemsOriginal',
     header: 'Glosas Items',
@@ -89,12 +89,12 @@ export const COLUMNS: ColumnDef[] = [
     wrap: true,
     format: (r) => wrapTextAt(r.descripcionItemsOriginal, 65),
   },
+  { key: 'numeroOC', header: 'Numero de OC', width: 18 },
   { key: 'concepto', header: 'Concepto', width: 32 },
   { key: 'customerCare', header: 'CustomerCare' },
   { key: 'reembolso', header: 'Reembolso' },
   { key: 'codigoPropuesta', header: 'Codigo de Propuesta', width: 18 },
   { key: 'codigoProvision', header: 'Codigo Provision', width: 22 },
-  { key: 'propuestaDetectada', header: 'PropuestaDetectada', width: 35 },
   {
     key: 'vinDetectado',
     header: 'VIN',
