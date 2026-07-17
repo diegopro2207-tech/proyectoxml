@@ -1,4 +1,6 @@
-import * as XLSX from 'xlsx';
+// xlsx-js-style = SheetJS + soporte de estilos de celda (wrapText, etc.),
+// necesario para que Excel muestre los saltos de línea (Alt+Enter) en la glosa.
+import * as XLSX from 'xlsx-js-style';
 import type { AnalyzedInvoice } from '@/types/invoice';
 
 // Convierte "yyyy-mm-dd" a Date. Si el string es inválido devuelve undefined.
@@ -10,12 +12,40 @@ function toDate(dateStr: string): Date | undefined {
   return isNaN(date.getTime()) ? undefined : date;
 }
 
+// Corta el texto en líneas de máximo `width` caracteres, sin partir palabras
+// (una palabra más larga que `width` se parte a la fuerza). Las líneas se unen
+// con "\n", que en Excel equivale a Alt+Enter dentro de la celda.
+export function wrapTextAt(text: string, width = 65): string {
+  if (!text) return '';
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+
+  for (let word of words) {
+    if (line && line.length + 1 + word.length <= width) {
+      line += ' ' + word;
+      continue;
+    }
+    if (line) lines.push(line);
+    // Palabra más larga que el ancho → cortar en trozos duros.
+    while (word.length > width) {
+      lines.push(word.slice(0, width));
+      word = word.slice(width);
+    }
+    line = word;
+  }
+  if (line) lines.push(line);
+  return lines.join('\n');
+}
+
 interface ColumnDef {
   key: keyof AnalyzedInvoice;
   header: string;
   format?: (row: AnalyzedInvoice) => unknown;
   width?: number;
   isDate?: boolean;
+  // Celdas con saltos de línea internos + estilo "ajustar texto".
+  wrap?: boolean;
 }
 
 // Orden de columnas:
@@ -52,7 +82,13 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'numeroOC', header: 'Numero de OC', width: 18 },
   { key: 'motivoOriginal', header: 'MotivoOriginal', width: 50 },
   // Orden desde Glosas en adelante:
-  { key: 'descripcionItemsOriginal', header: 'Glosas Items', width: 60 },
+  {
+    key: 'descripcionItemsOriginal',
+    header: 'Glosas Items',
+    width: 66,
+    wrap: true,
+    format: (r) => wrapTextAt(r.descripcionItemsOriginal, 65),
+  },
   { key: 'concepto', header: 'Concepto', width: 32 },
   { key: 'customerCare', header: 'CustomerCare' },
   { key: 'reembolso', header: 'Reembolso' },
@@ -100,6 +136,32 @@ export function exportInvoicesToExcel(
       }
     }
   });
+
+  // Columnas con wrap: estilo "ajustar texto" (para que Excel muestre los
+  // Alt+Enter) y alto de fila proporcional al número de líneas.
+  const rowLines: number[] = [];
+  COLUMNS.forEach((col, colIdx) => {
+    if (!col.wrap) return;
+    for (let row = range.s.r + 1; row <= range.e.r; row++) {
+      const addr = XLSX.utils.encode_cell({ r: row, c: colIdx });
+      const cell = ws[addr];
+      if (!cell || typeof cell.v !== 'string' || !cell.v) continue;
+      cell.s = {
+        alignment: { wrapText: true, vertical: 'top' },
+      };
+      const lines = cell.v.split('\n').length;
+      rowLines[row] = Math.max(rowLines[row] ?? 1, lines);
+    }
+  });
+
+  if (rowLines.length > 0) {
+    const rowsMeta: Array<{ hpt?: number }> = [];
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const lines = rowLines[row];
+      rowsMeta[row] = lines && lines > 1 ? { hpt: 4 + lines * 13 } : {};
+    }
+    ws['!rows'] = rowsMeta;
+  }
 
   ws['!cols'] = COLUMNS.map((c) => ({ wch: c.width ?? 18 }));
 
