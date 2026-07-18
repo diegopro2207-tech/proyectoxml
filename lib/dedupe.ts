@@ -1,7 +1,14 @@
 import type { AnalyzedInvoice } from '@/types/invoice';
 
 // Identidad de una factura: un DTE queda determinado por emisor + tipo + folio.
+// Si la identidad está incompleta (archivo que no se pudo parsear: sin RUT o
+// sin folio), se usa el nombre de archivo como clave para que cada fila sea
+// única. Sin esto, TODOS los archivos sin identidad colapsaban en una sola
+// fila (clave "||") y se contaban como duplicados.
 function identityKey(r: AnalyzedInvoice): string {
+  if (!r.rutEmisor || !r.folioFactura) {
+    return `archivo:${r.archivo}`;
+  }
   return `${r.rutEmisor}|${r.tipoDTE}|${r.folioFactura}`;
 }
 

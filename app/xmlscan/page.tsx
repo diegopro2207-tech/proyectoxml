@@ -61,21 +61,32 @@ export default function XmlscanPage() {
       }
     }
 
+    // "Sin datos": archivos que parsearon pero no se reconoció el DTE (sin
+    // folio). Se cuentan aparte y NO entran a la tabla, para que el Excel
+    // quede limpio y los números cuadren de forma transparente.
+    const withData = newRows.filter((r) => r.folioFactura);
+    const sinDatos = newRows.length - withData.length;
+
     // Combinar con lo existente y eliminar duplicados (misma factura).
-    // De los repetidos se descarta el que no tenga montos; si ambos tienen
-    // montos, se conserva solo uno.
     let removed = 0;
+    let nuevos = 0;
     setRows((prev) => {
-      const { rows: deduped, removed: r } = dedupeInvoices([...prev, ...newRows]);
+      const { rows: deduped, removed: r } = dedupeInvoices([
+        ...prev,
+        ...withData,
+      ]);
       removed = r;
+      nuevos = deduped.length - prev.length;
       return deduped;
     });
     setErrors((prev) => [...prev, ...newErrors]);
-    setStatus(
-      `Listo. ${newRows.length} archivo(s) procesado(s)${
-        removed ? `, ${removed} duplicado(s) eliminado(s)` : ''
-      }${newErrors.length ? `, ${newErrors.length} con error` : ''}.`
-    );
+
+    // Desglose transparente: subidos = nuevos + duplicados + con error + sin datos.
+    const partes = [`${nuevos} nuevo(s) en tabla`];
+    if (removed) partes.push(`${removed} duplicado(s)`);
+    if (newErrors.length) partes.push(`${newErrors.length} con error`);
+    if (sinDatos) partes.push(`${sinDatos} sin datos (no se reconoció DTE)`);
+    setStatus(`Listo. ${files.length} subido(s): ${partes.join(', ')}.`);
     setProcessing(false);
   }
 
