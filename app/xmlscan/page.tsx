@@ -20,6 +20,12 @@ export default function XmlscanPage() {
   const router = useRouter();
   const [rows, setRows] = useState<AnalyzedInvoice[]>([]);
   const [errors, setErrors] = useState<FileError[]>([]);
+  // "Sin datos": archivos que se leyeron pero no se reconoció la estructura
+  // del DTE (no se encontró el nodo <Documento> / sin folio). Se guardan sus
+  // nombres para que el usuario sepa exactamente cuáles fueron.
+  const [noData, setNoData] = useState<string[]>([]);
+  // Acumuladores para el resumen: subidos = en tabla + duplicados + con error + sin datos.
+  const [totals, setTotals] = useState({ subidos: 0, duplicados: 0 });
   const [processing, setProcessing] = useState(false);
   const [status, setStatus] = useState('');
 
@@ -62,10 +68,11 @@ export default function XmlscanPage() {
     }
 
     // "Sin datos": archivos que parsearon pero no se reconoció el DTE (sin
-    // folio). Se cuentan aparte y NO entran a la tabla, para que el Excel
-    // quede limpio y los números cuadren de forma transparente.
+    // folio). Se cuentan y listan aparte, no entran a la tabla.
     const withData = newRows.filter((r) => r.folioFactura);
-    const sinDatos = newRows.length - withData.length;
+    const sinDatosFiles = newRows
+      .filter((r) => !r.folioFactura)
+      .map((r) => r.archivo);
 
     // Combinar con lo existente y eliminar duplicados (misma factura).
     let removed = 0;
@@ -80,12 +87,18 @@ export default function XmlscanPage() {
       return deduped;
     });
     setErrors((prev) => [...prev, ...newErrors]);
+    setNoData((prev) => [...prev, ...sinDatosFiles]);
+    setTotals((prev) => ({
+      subidos: prev.subidos + files.length,
+      duplicados: prev.duplicados + removed,
+    }));
 
     // Desglose transparente: subidos = nuevos + duplicados + con error + sin datos.
     const partes = [`${nuevos} nuevo(s) en tabla`];
     if (removed) partes.push(`${removed} duplicado(s)`);
     if (newErrors.length) partes.push(`${newErrors.length} con error`);
-    if (sinDatos) partes.push(`${sinDatos} sin datos (no se reconoció DTE)`);
+    if (sinDatosFiles.length)
+      partes.push(`${sinDatosFiles.length} sin datos (no se reconoció DTE)`);
     setStatus(`Listo. ${files.length} subido(s): ${partes.join(', ')}.`);
     setProcessing(false);
   }
@@ -99,6 +112,8 @@ export default function XmlscanPage() {
   function handleClear() {
     setRows([]);
     setErrors([]);
+    setNoData([]);
+    setTotals({ subidos: 0, duplicados: 0 });
     setStatus('');
   }
 
@@ -156,6 +171,51 @@ export default function XmlscanPage() {
           </button>
           {status && <span className="status">{status}</span>}
         </div>
+
+        {totals.subidos > 0 && (
+          <div className="summary">
+            <div className="summary-grid">
+              <div className="summary-item">
+                <span className="summary-num">{totals.subidos}</span>
+                <span className="summary-lbl">Subidos</span>
+              </div>
+              <span className="summary-eq">=</span>
+              <div className="summary-item">
+                <span className="summary-num">{rows.length}</span>
+                <span className="summary-lbl">En tabla</span>
+              </div>
+              <span className="summary-eq">+</span>
+              <div className="summary-item">
+                <span className="summary-num">{totals.duplicados}</span>
+                <span className="summary-lbl">Duplicados</span>
+              </div>
+              <span className="summary-eq">+</span>
+              <div className="summary-item">
+                <span className="summary-num">{errors.length}</span>
+                <span className="summary-lbl">Con error</span>
+              </div>
+              <span className="summary-eq">+</span>
+              <div className="summary-item">
+                <span className="summary-num">{noData.length}</span>
+                <span className="summary-lbl">Sin datos</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {noData.length > 0 && (
+          <div className="errors">
+            <strong>
+              {ICON.alert}
+              Sin datos — no se reconoció la estructura del DTE ({noData.length})
+            </strong>
+            <ul>
+              {noData.map((archivo, i) => (
+                <li key={i}>{archivo}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {errors.length > 0 && (
           <div className="errors">
