@@ -32,23 +32,70 @@ export interface DocumentoPdf {
 // pesado y no debe evaluarse durante el render en servidor.
 let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 
+// Cuando el worker no puede arrancar (extensiones, antivirus o navegadores que
+// bloquean los workers de módulo) se procesa en el hilo principal. Es más
+// lento, pero es preferible a no poder leer el PDF.
+let usarHiloPrincipal = false;
+
 async function cargarPdfjs() {
   if (typeof window === 'undefined') {
     throw new Error('La lectura de PDF solo funciona en el navegador.');
   }
+
   if (!pdfjsPromise) {
-    pdfjsPromise = import('pdfjs-dist').then((pdfjs) => {
-      // El worker se sirve desde /public para no depender del bundler.
-      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    pdfjsPromise = (async () => {
+      const pdfjs = await import('pdfjs-dist');
+
+      if (!usarHiloPrincipal) {
+        try {
+          // El worker lo empaqueta el bundler y se sirve como un chunk más de
+          // la app. Así no depende de un archivo suelto en /public ni del tipo
+          // MIME con que el servidor lo entregue.
+          pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+            new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url),
+            { type: 'module' }
+          );
+          return pdfjs;
+        } catch {
+          usarHiloPrincipal = true;
+        }
+      }
+
+      // Sin worker: al importar el módulo, pdf.js lo encuentra ya cargado y no
+      // intenta descargarlo por red.
+      pdfjs.GlobalWorkerOptions.workerPort = null;
+      await import('pdfjs-dist/build/pdf.worker.min.mjs');
       return pdfjs;
-    });
+    })();
   }
+
   return pdfjsPromise;
 }
 
+// Un fallo del worker se reconoce por el mensaje que emite pdf.js.
+const esFalloDeWorker = (err: unknown) =>
+  /worker/i.test(err instanceof Error ? err.message : String(err));
+
 // Lee un PDF completo y devuelve el texto de cada página con coordenadas.
 // `onPagina` permite reportar avance en documentos largos (80+ páginas).
+//
+// Si el worker no arranca en este navegador, se reintenta una sola vez
+// procesando en el hilo principal, en vez de fallar el archivo entero.
 export async function leerPdf(
+  file: File,
+  onPagina?: (pagina: number, total: number) => void
+): Promise<DocumentoPdf> {
+  try {
+    return await leerPdfInterno(file, onPagina);
+  } catch (err) {
+    if (usarHiloPrincipal || !esFalloDeWorker(err)) throw err;
+    usarHiloPrincipal = true;
+    pdfjsPromise = null;
+    return leerPdfInterno(file, onPagina);
+  }
+}
+
+async function leerPdfInterno(
   file: File,
   onPagina?: (pagina: number, total: number) => void
 ): Promise<DocumentoPdf> {

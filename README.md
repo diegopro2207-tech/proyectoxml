@@ -95,9 +95,12 @@ corregir sin abrir el Excel.
 
 ### Notas de implementación
 
-- `public/pdf.worker.min.mjs` es el worker de pdf.js, copiado desde
-  `node_modules/pdfjs-dist/build/`. Si se actualiza `pdfjs-dist`, hay que
-  volver a copiarlo.
+- El worker de pdf.js lo empaqueta el bundler (`new Worker(new URL(...))`), así
+  que se sirve como un chunk más de la app. No hay que copiar nada a `public/`:
+  cuando el worker vive como archivo suelto, basta con que una extensión, un
+  antivirus o un navegador que bloquee los workers de módulo lo impida para
+  que deje de leerse cualquier PDF. Si aun así el worker no arranca, el lector
+  reintenta una vez procesando en el hilo principal (más lento, pero funciona).
 - Los PDF se procesan **de a uno** para que el avance por archivo sea real y
   para no agotar la memoria con documentos de 80+ páginas.
 - Si un PDF falla, el resto del lote se procesa igual y la fila de ese cliente
