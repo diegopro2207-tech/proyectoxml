@@ -32,11 +32,20 @@ export interface PaginaTexto {
 }
 
 // Un hueco mayor a este múltiplo de la altura de fuente separa dos segmentos.
-const FACTOR_HUECO_SEGMENTO = 2.5;
+const FACTOR_HUECO_SEGMENTO = 1.5;
 // Filas exclusivas de un lado necesarias para aceptar una maqueta a dos columnas.
 const FILAS_EXCLUSIVAS_MINIMAS = 2;
 // Filas consecutivas mínimas para considerar que hay una banda a dos columnas.
 const FILAS_MINIMAS_REGION = 4;
+// Ancho mínimo (proporción de la página) para que un lado sea una columna de
+// prosa y no la celda de valores de una tabla.
+const ANCHO_MINIMO_COLUMNA = 0.25;
+
+const mediana = (valores: number[]): number => {
+  if (valores.length === 0) return 0;
+  const orden = [...valores].sort((a, b) => a - b);
+  return orden[Math.floor(orden.length / 2)];
+};
 
 // Agrupa los items en filas por cercanía vertical, y dentro de cada fila los
 // parte en segmentos cuando hay un hueco horizontal grande.
@@ -147,18 +156,33 @@ function detectarRegionDosColumnas(
 
       let soloIzquierda = 0;
       let soloDerecha = 0;
+      const anchosIzq: number[] = [];
+      const anchosDer: number[] = [];
       for (let k = i; k <= j; k++) {
-        const hayIzq = filas[k].segmentos.some((s) => izquierdaDe(s, corte));
-        const hayDer = filas[k].segmentos.some((s) => derechaDe(s, corte));
-        if (hayIzq && !hayDer) soloIzquierda++;
-        if (hayDer && !hayIzq) soloDerecha++;
+        const izq = filas[k].segmentos.filter((s) => izquierdaDe(s, corte));
+        const der = filas[k].segmentos.filter((s) => derechaDe(s, corte));
+        if (izq.length && !der.length) soloIzquierda++;
+        if (der.length && !izq.length) soloDerecha++;
+        anchosIzq.push(...izq.map((s) => s.ancho));
+        anchosDer.push(...der.map((s) => s.ancho));
       }
+
+      // Dos maquetas distintas producen filas partidas, y hay que separarlas:
+      //   · Texto a dos columnas — cada lado es una columna ANCHA de prosa.
+      //   · Tabla — la primera celda es ancha y las demás son valores angostos.
+      // Se acepta la banda si un lado tiene filas propias (típico de una barra
+      // lateral) o si ambos lados son igual de anchos (columnas de prosa).
+      const columnasAnchas =
+        mediana(anchosIzq) >= anchoPagina * ANCHO_MINIMO_COLUMNA &&
+        mediana(anchosDer) >= anchoPagina * ANCHO_MINIMO_COLUMNA;
+      const hayFilasPropias =
+        soloIzquierda >= FILAS_EXCLUSIVAS_MINIMAS &&
+        soloDerecha >= FILAS_EXCLUSIVAS_MINIMAS;
 
       const largo = j - i + 1;
       if (
         largo >= FILAS_MINIMAS_REGION &&
-        soloIzquierda >= FILAS_EXCLUSIVAS_MINIMAS &&
-        soloDerecha >= FILAS_EXCLUSIVAS_MINIMAS &&
+        (hayFilasPropias || columnasAnchas) &&
         (!mejor || largo > mejor.puntaje)
       ) {
         mejor = { desde: i, hasta: j, corte, puntaje: largo };

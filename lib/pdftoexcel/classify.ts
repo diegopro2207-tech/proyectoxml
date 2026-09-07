@@ -165,7 +165,9 @@ export const TITULOS_SERVICIOS = [
 
 // Encabezado de "Comentarios": todo lo que sigue en la página se descarta,
 // en cualquier sección (§B y §C lo exigen explícitamente).
-const ENCABEZADO_COMENTARIOS = /^(comentarios?|comments?)\b[:\s]*$/i;
+// El rótulo puede venir solo en su línea ("Comentarios") o pegado al texto del
+// comentario ("Comment It will be the responsibility of the Administration…").
+const ENCABEZADO_COMENTARIOS = /^(comentarios?|comments?)\b\s*:?(\s|$)/i;
 
 // Pie de página de las láminas ("© BDO"): no es contenido.
 const LINEA_PIE = /^(©|\(c\))\s*bdo/i;
@@ -242,8 +244,33 @@ export function quitarRecurrentes(paginas: PaginaTexto[]): PaginaTexto[] {
   );
   if (recurrentes.size === 0) return paginas;
 
+  // Etiquetas laterales: el título de una sección se repite como banda vertical
+  // al costado de la lámina, y pdf.js lo entrega pegado al texto del cuerpo
+  // ("Asesoría Contable  ajustes y otros requerimientos similares."). Se
+  // reconocen porque son títulos de página que se repiten, y se quitan SOLO
+  // cuando la línea trae más contenido detrás.
+  const titulos = new Map<string, number>();
+  for (const pagina of paginas) {
+    const primera = pagina.lineas[0];
+    if (!primera) continue;
+    const h = huella(primera);
+    titulos.set(h, (titulos.get(h) ?? 0) + 1);
+  }
+  const etiquetas = new Set(
+    [...titulos.entries()].filter(([, veces]) => veces >= 2).map(([h]) => h)
+  );
+
+  const quitarEtiquetaLateral = (linea: string): string => {
+    const partes = linea.split(/\s{2,}/);
+    if (partes.length < 2 || !etiquetas.has(huella(partes[0]))) return linea;
+    return partes.slice(1).join('  ');
+  };
+
   return paginas.map((pagina) => {
-    const lineas = pagina.lineas.filter((l) => !recurrentes.has(huella(l)));
+    const lineas = pagina.lineas
+      .filter((l) => !recurrentes.has(huella(l)))
+      .map(quitarEtiquetaLateral)
+      .filter((l) => l.trim() !== '');
     return { ...pagina, lineas, texto: lineas.join('\n') };
   });
 }
@@ -333,10 +360,21 @@ function limpiarBloques(
 
   for (const limpia of unidas) {
 
-    // Una vez abierto el bloque "Comentarios", se descarta el resto de la página.
-    if (ENCABEZADO_COMENTARIOS.test(limpia)) {
+    // El rótulo "Comentarios" puede venir en medio de una línea, porque en las
+    // láminas a dos columnas el comentario va al costado del contenido. Se
+    // corta la línea ahí y se conserva solo lo que había antes.
+    const celdas = limpia.split(/\s{2,}/);
+    const inicioComentario = celdas.findIndex((c) => ENCABEZADO_COMENTARIOS.test(c.trim()));
+    if (inicioComentario >= 0) {
       enComentarios = true;
-      descartes.push({ linea: limpia, motivo: 'bloque Comentarios' });
+      descartes.push({
+        linea: celdas.slice(inicioComentario).join('  '),
+        motivo: 'bloque Comentarios',
+      });
+      const antes = celdas.slice(0, inicioComentario).join('  ').trim();
+      if (!antes) continue;
+      // Lo que iba antes del comentario sigue siendo contenido válido.
+      salida.push(antes);
       continue;
     }
     // El bloque de comentarios termina en la primera frontera estructural. Sin
@@ -406,7 +444,29 @@ export function clasificarPaginas(paginas: PaginaTexto[]): PaginaClasificada[] {
 
   for (const pagina of paginas) {
     const titulos = titulosDe(pagina);
-    const cuerpo = pagina.lineas.join(' ');
+    let lineasPagina = pagina.lineas;
+
+    // Encabezado de plantilla obsoleto: la lámina abre con el título de otra
+    // sección ("Nuestra Tecnología") pero su contenido real continúa la sección
+    // que ya venía abierta ("Cumplimiento Tributario"). Solo se ignora ese
+    // primer rótulo en ese caso; si no hay sección abierta, el título manda y
+    // la lámina se descarta como corresponde.
+    const continuaSeccionAbierta =
+      seccionActual !== 'IGNORAR' &&
+      coincide(
+        titulos.slice(1),
+        seccionActual === 'SERVICIOS' ? TITULOS_SERVICIOS : TITULOS_HONORARIOS
+      );
+    if (
+      titulos.length > 1 &&
+      coincide([titulos[0]], TITULOS_DESCARTE) &&
+      continuaSeccionAbierta
+    ) {
+      titulos.shift();
+      lineasPagina = lineasPagina.slice(1);
+    }
+
+    const cuerpo = lineasPagina.join(' ');
     const largo = cuerpo.replace(/\s+/g, '').length;
 
     let categoria: Categoria;
@@ -451,7 +511,7 @@ export function clasificarPaginas(paginas: PaginaTexto[]): PaginaClasificada[] {
     let { lineas, descartes } =
       categoria === 'IGNORAR'
         ? { lineas: [] as string[], descartes: [] as { linea: string; motivo: string }[] }
-        : limpiarBloques(pagina.lineas, categoria);
+        : limpiarBloques(lineasPagina, categoria);
 
     // Lámina de índice: pocas líneas, cada una "texto  número de página".
     // Trae el título de la sección pero ninguna información propia.

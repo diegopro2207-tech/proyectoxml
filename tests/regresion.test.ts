@@ -168,3 +168,73 @@ describe('EBANX Chile (propuesta en español)', { skip: falta(EBANX) && 'sin fix
     ningunaLineaExcede(honorarios, 'honorarios');
   });
 });
+
+const ENERCON = '12-2023 Enercon PO 279 37-42.pdf';
+
+describe('Enercon (extracto solo de honorarios)', { skip: falta(ENERCON) && 'sin fixture' }, () => {
+  test('deriva el cliente del nombre del archivo', async () => {
+    const fila = await procesar(ENERCON);
+    assert.equal(fila.cliente, 'Enercon');
+    assert.equal(fila.fuenteCliente, 'archivo');
+  });
+
+  test('avisa que el archivo no trae servicios en vez de inventarlos (§E)', async () => {
+    const { servicios } = original(await procesar(ENERCON));
+    assert.ok(servicios.startsWith('[PENDIENTE]'), servicios.slice(0, 60));
+    // El aviso dice qué páginas SÍ trae el archivo.
+    assert.match(servicios, /honorarios: P\d/);
+  });
+
+  test('extrae la tabla de honorarios y las tres opciones', async () => {
+    const { honorarios } = original(await procesar(ENERCON));
+    for (const esperado of [
+      'Annual Income Tax Return: 6,480',
+      'Mandatory Affidavits: 2,840',
+      'Monthly Tax Compliance: 820',
+      'Partner: 237',
+      'Option B: Fixed monthly fee',
+    ]) {
+      assert.ok(honorarios.includes(esperado), `falta: ${esperado}`);
+    }
+  });
+});
+
+describe('Formato de servicios', { skip: falta(EBANX) && 'sin fixture' }, () => {
+  test('omite el servicio Start-up en todos los documentos', async () => {
+    for (const archivo of [AB, EBANX]) {
+      if (falta(archivo)) continue;
+      const { servicios } = original(await procesar(archivo));
+      assert.ok(
+        !/start[\s-]?up|puesta en marcha/i.test(servicios),
+        `${archivo}: no debería aparecer el servicio Start-up`
+      );
+    }
+  });
+
+  test('ordena nombre, descripción y detalle en viñetas', async () => {
+    const { servicios } = original(await procesar(EBANX));
+    const lineas = servicios.split('\n');
+
+    // El detalle va en viñetas con "- " al inicio, una por párrafo.
+    const vinietas = lineas.filter((l) => l.startsWith('- '));
+    assert.ok(vinietas.length > 10, `se esperaban varias viñetas, hubo ${vinietas.length}`);
+
+    // El nombre del servicio abre el texto, antes de cualquier viñeta.
+    assert.equal(lineas[0], 'Asesoría Contable');
+    assert.ok(!lineas[0].startsWith('- '));
+
+    // Los bloques se separan con una línea en blanco, para que se note el orden.
+    assert.ok(servicios.includes('\n\n'), 'faltan separaciones entre bloques');
+  });
+
+  test('no arrastra bloques de Comentarios al detalle', async () => {
+    for (const archivo of [AB, EBANX]) {
+      if (falta(archivo)) continue;
+      const { servicios } = original(await procesar(archivo));
+      assert.ok(
+        !/\bComment It will be|\bComentario\b/.test(servicios),
+        `${archivo}: se coló un bloque de comentarios`
+      );
+    }
+  });
+});

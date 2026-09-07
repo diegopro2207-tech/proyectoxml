@@ -104,12 +104,14 @@ export function procesarDocumento(doc: DocumentoPdf): FilaCliente {
     const paginas = quitarRecurrentes(doc.paginas.map(paginaATexto));
     const log = clasificarPaginas(paginas);
 
-    const lineasServicios = lineasDe(log, 'SERVICIOS');
+    const bloquesServicios = log
+      .filter((p) => p.categoria === 'SERVICIOS' && p.lineas.length > 0)
+      .map((p) => p.lineas);
     const lineasHonorarios = lineasDe(log, 'HONORARIOS');
 
     // El idioma se decide sobre el contenido que sí se extrajo.
     const idioma = detectarIdioma(
-      [...lineasServicios, ...lineasHonorarios].join(' ')
+      [...bloquesServicios.flat(), ...lineasHonorarios].join(" ")
     );
     const enIngles = idioma === 'en';
 
@@ -122,8 +124,8 @@ export function procesarDocumento(doc: DocumentoPdf): FilaCliente {
 
     // Si una sección no viene en el archivo se explica qué SÍ trae, en vez de
     // dejar la celda vacía o inventar contenido (§E, caso Enercon).
-    const servicios = lineasServicios.length
-      ? ajustarAncho(formatearServicios(lineasServicios))
+    const servicios = bloquesServicios.length
+      ? ajustarAncho(formatearServicios(bloquesServicios))
       : `[PENDIENTE] El archivo no trae sección de servicios. Páginas de honorarios: ${rangoPaginas(paginasHonorarios)}.`;
 
     const honorarios = lineasHonorarios.length
