@@ -306,6 +306,13 @@ function coincideUno(titulo: string, patron: string): boolean {
   return titulo === patron || titulo.startsWith(patron);
 }
 
+// Título de portada. Se comprueba SOLO en la primera lámina: ahí el nombre de
+// la propuesta ("Propuesta de Prestación de Servicios Profesionales") abriría
+// la sección de servicios y, al continuarla las láminas siguientes, arrastraría
+// toda la introducción. La portada está entre lo que §B descarta.
+const TITULO_PORTADA =
+  /^(propuesta\b|proposal\b|prestaci[oó]n de servicios|servicios profesionales|professional services proposal)/i;
+
 // Cargos de personas: las láminas de currículum del equipo se descartan
 // (§B "Equipo profesional, CVs, fotos, contactos"). Se detectan por el cargo
 // que aparece bajo el nombre, porque el nombre en sí no es reconocible.
@@ -486,6 +493,10 @@ export function clasificarPaginas(paginas: PaginaTexto[]): PaginaClasificada[] {
     if (largo === 0) {
       categoria = 'IGNORAR';
       motivo = 'sin texto extraíble (imagen o diagrama)';
+    } else if (pagina.numero === 1 && titulos.some((t) => TITULO_PORTADA.test(t))) {
+      categoria = 'IGNORAR';
+      motivo = 'portada de la propuesta';
+      seccionActual = 'IGNORAR';
     } else if (titulos.some((t) => TITULO_PERSONA.test(t))) {
       categoria = 'IGNORAR';
       motivo = 'ficha de una persona del equipo';

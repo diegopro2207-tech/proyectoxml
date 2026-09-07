@@ -238,3 +238,18 @@ describe('Formato de servicios', { skip: falta(EBANX) && 'sin fixture' }, () => 
     }
   });
 });
+
+describe('Portada', { skip: falta(AB) && 'sin fixture' }, () => {
+  test('la portada nunca abre la sección de servicios', async () => {
+    // El nombre de la propuesta ("Propuesta de Prestación de Servicios
+    // Profesionales") contiene la palabra servicios. Si la portada abriera esa
+    // sección, las láminas siguientes la continuarían y se arrastraría toda la
+    // introducción del documento.
+    for (const archivo of [AB, EBANX]) {
+      if (falta(archivo)) continue;
+      const fila = await procesar(archivo);
+      const portada = fila.log.find((p) => p.numero === 1);
+      assert.equal(portada?.categoria, 'IGNORAR', `${archivo}: la portada no debe aportar contenido`);
+    }
+  });
+});
