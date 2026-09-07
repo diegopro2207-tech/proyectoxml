@@ -1,15 +1,15 @@
 # NexaProyects
 
 Portafolio desplegado en **nexalumen.cl**. Cada herramienta vive como una ruta
-privada del mismo proyecto Next.js y se protege con su propia contraseña.
+del mismo proyecto Next.js.
 
 | Ruta | Herramienta | Qué hace |
 |---|---|---|
 | `/xmlscan` | **XMLScan** | Procesa XML de facturas electrónicas (DTE) y los exporta a Excel. |
-| `/pdftoexcel` | **PDF to Excel** | Extrae servicios y honorarios de propuestas en PDF y los exporta a Excel. |
+| `/pdftoexcel` | **PDF to Excel** | Extrae servicios y honorarios de propuestas en PDF y los exporta a Excel. Acceso libre. |
 
 Todo el procesamiento ocurre **en el navegador**: ni los XML ni los PDF se
-suben a ningún servidor. El servidor solo valida la contraseña.
+suben a ningún servidor.
 
 ## Desarrollo
 
@@ -26,11 +26,13 @@ Crear un archivo `.env.local` (está en `.gitignore`):
 
 ```
 XMLSCAN_PASSWORD=...
-PDFEXCEL_PASSWORD=...
 ```
 
-En Vercel se configuran en *Settings → Environment Variables*. Sin la variable,
-la herramienta correspondiente rechaza cualquier contraseña.
+En Vercel se configura en *Settings → Environment Variables*. Sin la variable,
+XMLScan rechaza cualquier contraseña.
+
+PDF to Excel no lleva contraseña: todo el procesamiento ocurre en el navegador,
+así que no hay datos en el servidor que proteger.
 
 ---
 

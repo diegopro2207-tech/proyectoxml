@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import DropzonePdf from '@/components/pdftoexcel/DropzonePdf';
 import ReviewPanel from '@/components/pdftoexcel/ReviewPanel';
 import { procesarPdf, type EstadoArchivo, type FilaCliente } from '@/lib/pdftoexcel/pipeline';
@@ -17,7 +16,6 @@ interface ItemArchivo {
 }
 
 export default function PdfToExcelPage() {
-  const router = useRouter();
   const [items, setItems] = useState<ItemArchivo[]>([]);
   const [procesando, setProcesando] = useState(false);
 
@@ -74,15 +72,6 @@ export default function PdfToExcelPage() {
     setItems([]);
   }
 
-  async function salir() {
-    try {
-      await fetch('/api/pdftoexcel-logout', { method: 'POST' });
-    } catch {
-      /* no-op */
-    }
-    router.push('/');
-    router.refresh();
-  }
 
   const listos = items.filter((i) => i.fila).length;
   const conError = items.filter((i) => i.estado === 'error').length;
@@ -100,10 +89,6 @@ export default function PdfToExcelPage() {
             </span>
           </Link>
           <span className="app-bar-spacer" />
-          <button className="ghost" onClick={salir} type="button">
-            {ICON.logout}
-            Salir
-          </button>
         </div>
       </header>
 
@@ -191,11 +176,6 @@ const ICON = {
   trash: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6" />
-    </svg>
-  ),
-  logout: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
     </svg>
   ),
 };
