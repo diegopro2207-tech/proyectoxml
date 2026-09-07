@@ -8,3 +8,8 @@ dist
 
 # PDFs de clientes usados como fixtures: confidenciales, no se versionan.
 tests/fixtures/
+
+# Nunca versionar archivos con credenciales.
+Diego.txt
+*.password
+*secret*
