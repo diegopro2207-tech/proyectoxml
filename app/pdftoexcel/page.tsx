@@ -67,7 +67,7 @@ export default function PdfToExcelPage() {
     const filas = items.map((i) => i.fila).filter((f): f is FilaCliente => !!f);
     if (!filas.length) return;
     const sello = new Date().toISOString().slice(0, 10);
-    exportarExcel(filas, `clientes_${sello}.xlsx`);
+    exportarExcel(filas, `Servicios_Honorarios_BDO_${sello}.xlsx`);
   }
 
   function limpiar() {

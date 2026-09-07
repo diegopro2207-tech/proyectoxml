@@ -80,6 +80,6 @@ export function exportarExcel(filas: FilaCliente[], nombreArchivo = 'clientes.xl
   );
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+  XLSX.utils.book_append_sheet(wb, ws, 'Propuestas BDO');
   XLSX.writeFile(wb, nombreArchivo);
 }

@@ -7,10 +7,14 @@
 // el documento no trae quedan marcadas como pendientes para completarlas a mano
 // en el panel de revisión.
 
-import { leerPdf } from './pdfText';
+import { leerPdf, type DocumentoPdf } from './pdfText';
 import { paginaATexto } from './readingOrder';
 import { detectarCliente, type FuenteCliente } from './cliente';
-import { clasificarPaginas, type PaginaClasificada } from './classify';
+import {
+  clasificarPaginas,
+  quitarRecurrentes,
+  type PaginaClasificada,
+} from './classify';
 import { formatearServicios } from './servicios';
 import { formatearTablas } from './tables';
 import { detectarIdioma, type Idioma } from './language';
@@ -76,13 +80,12 @@ function lineasDe(log: PaginaClasificada[], categoria: string): string[] {
   return salida;
 }
 
-// Procesa un PDF completo y devuelve la fila lista para el Excel.
-export async function procesarPdf(
-  file: File,
-  onProgreso?: (estado: EstadoArchivo, detalle?: string) => void
-): Promise<FilaCliente> {
+// Analiza un documento ya leído y devuelve la fila lista para el Excel.
+// Separado de `procesarPdf` para poder ejercitar todo el análisis fuera del
+// navegador (los tests de regresión leen el PDF con pdf.js en Node).
+export function procesarDocumento(doc: DocumentoPdf): FilaCliente {
   const base: FilaCliente = {
-    archivo: file.name,
+    archivo: doc.archivo,
     cliente: '',
     fuenteCliente: 'desconocido',
     idioma: 'es',
@@ -94,15 +97,11 @@ export async function procesarPdf(
     paginasSinTexto: [],
   };
 
-  try {
-    onProgreso?.('leyendo PDF');
-    const doc = await leerPdf(file, (n, total) =>
-      onProgreso?.('leyendo PDF', `página ${n} de ${total}`)
-    );
-
-    onProgreso?.('analizando');
-    const paginas = doc.paginas.map(paginaATexto);
-    const cliente = detectarCliente(file.name, doc.paginas);
+  {
+    // El cliente se busca ANTES de limpiar: el encabezado repetido de las
+    // láminas es justamente una de las fuentes donde aparece su nombre.
+    const cliente = detectarCliente(doc.archivo, doc.paginas);
+    const paginas = quitarRecurrentes(doc.paginas.map(paginaATexto));
     const log = clasificarPaginas(paginas);
 
     const lineasServicios = lineasDe(log, 'SERVICIOS');
@@ -150,18 +149,36 @@ export async function procesarPdf(
       log,
       paginasSinTexto: doc.paginasSinTexto,
     };
+  }
+}
+
+// Lee un PDF del navegador y lo analiza. Un archivo que falle no detiene el
+// lote: devuelve su fila con el motivo del error en las celdas.
+export async function procesarPdf(
+  file: File,
+  onProgreso?: (estado: EstadoArchivo, detalle?: string) => void
+): Promise<FilaCliente> {
+  try {
+    onProgreso?.('leyendo PDF');
+    const doc = await leerPdf(file, (n, total) =>
+      onProgreso?.('leyendo PDF', `página ${n} de ${total}`)
+    );
+    onProgreso?.('analizando');
+    return procesarDocumento(doc);
   } catch (err) {
-    // Un PDF que falla no debe detener el lote: se devuelve la fila con el
-    // motivo del error en su celda.
     const motivo = err instanceof Error ? err.message : 'Error desconocido';
     return {
-      ...base,
+      archivo: file.name,
       cliente: file.name.replace(/\.pdf$/i, ''),
+      fuenteCliente: 'desconocido',
+      idioma: 'es',
       error: motivo,
       servicios: `[ERROR] ${motivo}`,
       honorarios: `[ERROR] ${motivo}`,
       services: `[ERROR] ${motivo}`,
       fees: `[ERROR] ${motivo}`,
+      log: [],
+      paginasSinTexto: [],
     };
   }
 }
