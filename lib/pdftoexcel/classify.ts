@@ -46,12 +46,12 @@ export const TITULOS_DESCARTE = [
   'global portal',
   'propuesta de valor',
   'value proposition',
-  'certificaciones',
-  'certifications',
+  'certificaciones$',
+  'certifications$',
   'resultados financieros',
   'financial results',
   'indice',
-  'contenido',
+  'contenido$',
   'agenda',
   'table of contents',
   'executive summary',
@@ -93,7 +93,7 @@ export const TITULOS_DESCARTE = [
   'portal global bdo',
   'global portal bdo',
   'hagalo todo con bdo',
-  'resultados',
+  'resultados$',
 ];
 
 // Títulos que abren la sección de honorarios (§C).
@@ -133,8 +133,6 @@ export const TITULOS_SERVICIOS = [
   'reports',
   'entregables',
   'deliverables',
-  'introduction',
-  'introduccion',
   'servicio de control',
   'cuentas por pagar',
   'cuentas por cobrar',
@@ -300,6 +298,11 @@ const LARGO_PATRON_EXACTO = 6;
 // en cualquier posición produce falsos positivos: un párrafo legal que menciona
 // "contenido" no es un índice.
 function coincideUno(titulo: string, patron: string): boolean {
+  // Un patron terminado en "$" solo vale como titulo completo. Sirve para
+  // palabras que ademas encabezan servicios reales: "Certificaciones" es una
+  // lamina corporativa que se descarta, pero "Certificaciones Laborales" es un
+  // servicio que hay que extraer.
+  if (patron.endsWith('$')) return titulo === patron.slice(0, -1);
   if (patron.length <= LARGO_PATRON_EXACTO) {
     return titulo === patron || titulo.startsWith(`${patron} `);
   }
@@ -312,6 +315,13 @@ function coincideUno(titulo: string, patron: string): boolean {
 // toda la introducción. La portada está entre lo que §B descarta.
 const TITULO_PORTADA =
   /^(propuesta\b|proposal\b|prestaci[oó]n de servicios|servicios profesionales|professional services proposal)/i;
+
+// "Introducción" solo es contenido cuando abre la sección de servicios (§B:
+// "notas introductorias de la sección de servicios"). Al principio del
+// documento es la introducción de la propuesta y no debe abrir nada: si lo
+// hiciera, las láminas siguientes continuarían esa sección y se arrastraría
+// toda la introducción como si fuera un servicio.
+const TITULO_INTRODUCCION = /^(introducci[oó]n|introduction)/i;
 
 // Cargos de personas: las láminas de currículum del equipo se descartan
 // (§B "Equipo profesional, CVs, fotos, contactos"). Se detectan por el cargo
@@ -407,11 +417,17 @@ function limpiarBloques(
     }
 
     if (categoria === 'HONORARIOS') {
+      // Una vineta es un item de honorarios aunque no traiga cifra: puede
+      // decir que el honorario se pacta de comun acuerdo, y esa condicion es
+      // parte de la propuesta. La especificacion descarta "frases sueltas"
+      // con esa formula, y una vineta no lo es.
+      const esItem = limpia.startsWith('• ');
+
       if (TEXTO_LEGAL_HONORARIOS.test(limpia)) {
         descartes.push({ linea: limpia, motivo: 'texto legal / política de honorarios' });
         continue;
       }
-      if (SIN_CIFRA_ACORDADA.test(limpia) && !TIENE_VALOR.test(limpia)) {
+      if (!esItem && SIN_CIFRA_ACORDADA.test(limpia) && !TIENE_VALOR.test(limpia)) {
         descartes.push({ linea: limpia, motivo: 'honorario sin cifra' });
         continue;
       }
@@ -436,6 +452,7 @@ function limpiarBloques(
         (siguiente.startsWith('• ') || TIENE_VALOR.test(siguiente));
 
       const esRotulo =
+        esItem ||
         enMayusculas(limpia) ||
         encabezaValores ||
         abreGrupoDeValores ||
@@ -509,6 +526,13 @@ export function clasificarPaginas(paginas: PaginaTexto[]): PaginaClasificada[] {
       categoria = 'HONORARIOS';
       motivo = `título de honorarios: "${titulos.join(" | ")}"`;
       seccionActual = 'HONORARIOS';
+    } else if (titulos.some((t) => TITULO_INTRODUCCION.test(t))) {
+      const abreServicios = seccionActual === 'SERVICIOS';
+      categoria = abreServicios ? 'SERVICIOS' : 'IGNORAR';
+      motivo = abreServicios
+        ? 'nota introductoria de la sección de servicios'
+        : 'introducción de la propuesta, antes de cualquier servicio';
+      if (!abreServicios) seccionActual = 'IGNORAR';
     } else if (coincide(titulos, TITULOS_SERVICIOS)) {
       categoria = 'SERVICIOS';
       motivo = `título de servicios: "${titulos.join(" | ")}"`;
