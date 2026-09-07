@@ -358,7 +358,7 @@ function limpiarBloques(
   const salida: string[] = [];
   let enComentarios = false;
 
-  for (const limpia of unidas) {
+  for (const [indice, limpia] of unidas.entries()) {
 
     // El rótulo "Comentarios" puede venir en medio de una línea, porque en las
     // láminas a dos columnas el comentario va al costado del contenido. Se
@@ -419,9 +419,19 @@ function limpiarBloques(
       // ("according to the following detail:").
       const encabezaValores =
         /:$/.test(limpia) && limpia.length <= 80 && /^[A-ZÁÉÍÓÚÑ¿0-9]/.test(limpia);
+      // Subtítulo de un grupo de honorarios: una línea breve seguida de las
+      // viñetas con los montos ("Servicios de obtención de Identificación
+      // tributaria." y debajo "✓ … USD 800"). Se reconoce por lo que viene
+      // DESPUÉS, no por su puntuación: muchos terminan en punto.
+      const siguiente = unidas[indice + 1] ?? '';
+      const abreGrupoDeValores =
+        limpia.length <= 80 &&
+        (siguiente.startsWith('• ') || TIENE_VALOR.test(siguiente));
+
       const esRotulo =
         enMayusculas(limpia) ||
         encabezaValores ||
+        abreGrupoDeValores ||
         coincide([normalizar(limpia)], [...TITULOS_HONORARIOS, ...TITULOS_SERVICIOS]);
       if (!TIENE_VALOR.test(limpia) && !esRotulo) {
         descartes.push({ linea: limpia, motivo: 'párrafo introductorio sin valores' });

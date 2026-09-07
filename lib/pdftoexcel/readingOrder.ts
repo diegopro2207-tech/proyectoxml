@@ -40,6 +40,8 @@ const FILAS_MINIMAS_REGION = 4;
 // Ancho mínimo (proporción de la página) para que un lado sea una columna de
 // prosa y no la celda de valores de una tabla.
 const ANCHO_MINIMO_COLUMNA = 0.25;
+// Cuántas veces se puede volver a dividir una columna en sub-columnas.
+const PROFUNDIDAD_MAXIMA = 3;
 
 const mediana = (valores: number[]): number => {
   if (valores.length === 0) return 0;
@@ -118,27 +120,51 @@ interface RegionDosColumnas {
   corte: number; // coordenada X que separa ambas columnas
 }
 
-// Busca la banda de la página que está realmente maquetada en dos columnas.
+// Extensión horizontal que ocupa un conjunto de filas.
+function extension(filas: Fila[]): { inicio: number; fin: number; ancho: number } {
+  const segmentos = filas.flatMap((f) => f.segmentos);
+  if (segmentos.length === 0) return { inicio: 0, fin: 0, ancho: 0 };
+  const inicio = Math.min(...segmentos.map((s) => s.x));
+  const fin = Math.max(...segmentos.map((s) => s.x + s.ancho));
+  return { inicio, fin, ancho: fin - inicio };
+}
+
+// Busca la banda de filas maquetada en dos columnas DENTRO del bloque recibido.
 //
-// La búsqueda es por BANDAS y no sobre la página completa porque las láminas
-// suelen ser mixtas: una tabla o un título a todo lo ancho arriba y dos
-// columnas de texto abajo. Un corredor global nunca sobreviviría a la tabla.
+// Trabaja sobre la extensión real del bloque, no sobre el ancho de la página,
+// para poder aplicarse también dentro de una columna ya separada (una lámina
+// puede tener un panel lateral y, en el panel de contenido, dos sub-columnas).
 //
-// Para cada corte candidato se toman los tramos de filas consecutivas que no lo
-// cruzan y se exige que ambos lados tengan filas propias. Esa exigencia es la
-// que distingue dos columnas de una tabla: en una tabla casi toda fila tiene
-// celda a ambos lados, así que no hay filas exclusivas de un solo lado.
+// Se busca por bandas porque las láminas son mixtas: un título o una tabla a
+// todo lo ancho arriba y dos columnas debajo. Para cada corte candidato se
+// toman los tramos de filas consecutivas que no lo cruzan y se exige que las
+// dos columnas se sostengan: o cada lado tiene filas propias (típico de un
+// panel lateral) o ambos lados son igual de anchos (prosa a dos columnas). Eso
+// es lo que distingue dos columnas de una tabla, cuyas celdas de valores son
+// angostas y acompañan siempre a una celda de la izquierda.
 function detectarRegionDosColumnas(
   filas: Fila[],
+  profundidad: number,
   anchoPagina: number
 ): RegionDosColumnas | null {
   if (filas.length < FILAS_MINIMAS_REGION) return null;
 
-  const desde = anchoPagina * 0.2;
-  const hasta = anchoPagina * 0.8;
-  const paso = Math.max(1, anchoPagina / 300);
+  // A nivel de página se mide contra el ancho de la lámina. Dentro de una
+  // columna ya separada, contra la extensión real de esa columna: si no, los
+  // umbrales quedarían fuera de rango y nunca se encontraría el corte.
+  const propia = extension(filas);
+  const ancho = profundidad === 0 ? anchoPagina : propia.ancho;
+  const inicio = profundidad === 0 ? 0 : propia.inicio;
+  if (ancho <= 0) return null;
 
-  let mejor: (RegionDosColumnas & { puntaje: number }) | null = null;
+  const desde = inicio + ancho * 0.2;
+  const hasta = inicio + ancho * 0.8;
+  const paso = Math.max(1, ancho / 300);
+
+  // Se prefiere el corte que deja más filas viviendo en un solo lado: ese es
+  // el borde real de la columna. Elegir solo por longitud de banda hace que el
+  // corte caiga dentro de una tabla, partiendo sus rótulos.
+  let mejor: (RegionDosColumnas & { sueltas: number; largo: number }) | null = null;
 
   for (let corte = desde; corte <= hasta; corte += paso) {
     const cruza = filas.map((f) =>
@@ -167,25 +193,28 @@ function detectarRegionDosColumnas(
         anchosDer.push(...der.map((s) => s.ancho));
       }
 
-      // Dos maquetas distintas producen filas partidas, y hay que separarlas:
-      //   · Texto a dos columnas — cada lado es una columna ANCHA de prosa.
-      //   · Tabla — la primera celda es ancha y las demás son valores angostos.
-      // Se acepta la banda si un lado tiene filas propias (típico de una barra
-      // lateral) o si ambos lados son igual de anchos (columnas de prosa).
+      const largo = j - i + 1;
+
+      // Dos columnas de prosa: cada lado es igual de ancho.
       const columnasAnchas =
-        mediana(anchosIzq) >= anchoPagina * ANCHO_MINIMO_COLUMNA &&
-        mediana(anchosDer) >= anchoPagina * ANCHO_MINIMO_COLUMNA;
+        mediana(anchosIzq) >= ancho * ANCHO_MINIMO_COLUMNA &&
+        mediana(anchosDer) >= ancho * ANCHO_MINIMO_COLUMNA;
+      // Cada lado tiene varias filas propias: típico de una barra lateral.
       const hayFilasPropias =
         soloIzquierda >= FILAS_EXCLUSIVAS_MINIMAS &&
         soloDerecha >= FILAS_EXCLUSIVAS_MINIMAS;
+      // Dentro de una columna ya separada el listón sube: solo se vuelve a
+      // partir si ambos lados son prosa ancha. Si no, se partirían también las
+      // columnas de una tabla de honorarios y se perderían sus rótulos.
+      const aceptable =
+        profundidad === 0 ? hayFilasPropias || columnasAnchas : columnasAnchas;
 
-      const largo = j - i + 1;
-      if (
-        largo >= FILAS_MINIMAS_REGION &&
-        (hayFilasPropias || columnasAnchas) &&
-        (!mejor || largo > mejor.puntaje)
-      ) {
-        mejor = { desde: i, hasta: j, corte, puntaje: largo };
+      const sueltas = soloIzquierda + soloDerecha;
+      const mejora =
+        !mejor || sueltas > mejor.sueltas || (sueltas === mejor.sueltas && largo > mejor.largo);
+
+      if (largo >= FILAS_MINIMAS_REGION && aceptable && mejora) {
+        mejor = { desde: i, hasta: j, corte, sueltas, largo };
       }
       i = j + 1;
     }
@@ -204,43 +233,49 @@ export function paginaAFilas(pagina: PaginaPdf): Fila[] {
 // conserva la frontera entre celdas para la detección de tablas.
 const textoFila = (fila: Fila) => fila.segmentos.map((s) => s.texto).join('  ');
 
+// Ordena un bloque de filas respetando la regla de lectura, y se aplica a sí
+// mismo dentro de cada columna que encuentra.
+//
+// La recursión es lo que permite leer bien una lámina con panel lateral cuyo
+// panel de contenido está, a su vez, dividido en dos sub-columnas: primero se
+// separa el panel del contenido y después, dentro del contenido, "Alcance" de
+// "Reportes". Sin ella las sub-columnas se leen entrelazadas.
+function ordenarFilas(filas: Fila[], anchoPagina: number, profundidad = 0): string[] {
+  if (filas.length === 0) return [];
+  if (profundidad >= PROFUNDIDAD_MAXIMA) return filas.map(textoFila);
+
+  const region = detectarRegionDosColumnas(filas, profundidad, anchoPagina);
+  if (region === null) return filas.map(textoFila);
+
+  const banda = filas.slice(region.desde, region.hasta + 1);
+  const izquierda: Fila[] = [];
+  const derecha: Fila[] = [];
+  for (const fila of banda) {
+    const izq = fila.segmentos.filter((s) => izquierdaDe(s, region.corte));
+    const der = fila.segmentos.filter((s) => derechaDe(s, region.corte));
+    if (izq.length) izquierda.push({ y: fila.y, segmentos: izq });
+    if (der.length) derecha.push({ y: fila.y, segmentos: der });
+  }
+
+  // Lo que queda arriba y abajo de la banda mantiene su orden natural: ahí
+  // viven los títulos a todo lo ancho y las tablas.
+  return [
+    ...ordenarFilas(filas.slice(0, region.desde), anchoPagina, profundidad),
+    ...ordenarFilas(izquierda, anchoPagina, profundidad + 1),
+    ...ordenarFilas(derecha, anchoPagina, profundidad + 1),
+    ...ordenarFilas(filas.slice(region.hasta + 1), anchoPagina, profundidad),
+  ];
+}
+
 // Convierte una página en texto plano respetando el orden de lectura.
 export function paginaATexto(pagina: PaginaPdf): PaginaTexto {
   const filas = agruparEnFilas(pagina.items);
-  const region = detectarRegionDosColumnas(filas, pagina.ancho);
-
-  // Sin banda a dos columnas: cada fila es una línea, con sus segmentos en
-  // orden (así una fila de tabla conserva sus celdas).
-  if (region === null) {
-    const lineas = filas.map(textoFila);
-    return {
-      numero: pagina.numero,
-      lineas,
-      texto: lineas.join('\n'),
-      dosColumnas: false,
-    };
-  }
-
-  // Lo que está por encima de la banda mantiene su orden natural: ahí viven los
-  // títulos que cruzan todo el ancho y las tablas.
-  const antes = filas.slice(0, region.desde).map(textoFila);
-  const despues = filas.slice(region.hasta + 1).map(textoFila);
-
-  // Dentro de la banda: toda la columna izquierda y después toda la derecha.
-  const izquierda: string[] = [];
-  const derecha: string[] = [];
-  for (const fila of filas.slice(region.desde, region.hasta + 1)) {
-    const izq = fila.segmentos.filter((s) => izquierdaDe(s, region.corte));
-    const der = fila.segmentos.filter((s) => derechaDe(s, region.corte));
-    if (izq.length) izquierda.push(izq.map((s) => s.texto).join('  '));
-    if (der.length) derecha.push(der.map((s) => s.texto).join('  '));
-  }
-
-  const lineas = [...antes, ...izquierda, ...derecha, ...despues];
+  const dosColumnas = detectarRegionDosColumnas(filas, 0, pagina.ancho) !== null;
+  const lineas = ordenarFilas(filas, pagina.ancho);
   return {
     numero: pagina.numero,
     lineas,
     texto: lineas.join('\n'),
-    dosColumnas: true,
+    dosColumnas,
   };
 }
