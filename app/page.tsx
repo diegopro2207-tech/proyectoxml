@@ -18,6 +18,14 @@ const PROJECTS: Project[] = [
     tag: 'Privado',
     locked: true,
   },
+  {
+    href: '/pdftoexcel',
+    name: 'PDF to Excel',
+    description:
+      'Lee propuestas de servicios en PDF, extrae los servicios y los honorarios respetando el orden de lectura, y los exporta a Excel con una fila por cliente.',
+    tag: 'Privado',
+    locked: true,
+  },
 ];
 
 export default function Portfolio() {

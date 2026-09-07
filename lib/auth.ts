@@ -25,3 +25,15 @@ export async function expectedToken(): Promise<string> {
   if (!pwd) return '';
   return sha256hex(pwd);
 }
+
+// ─── PDF to Excel ───────────────────────────────────────────────────────────
+// Segundo proyecto privado, con su propia cookie y su propia contraseña
+// (PDFEXCEL_PASSWORD) para que las sesiones sean independientes.
+
+export const PDFEXCEL_COOKIE = 'pdftoexcel_auth';
+
+export async function expectedTokenPdfExcel(): Promise<string> {
+  const pwd = process.env.PDFEXCEL_PASSWORD;
+  if (!pwd) return '';
+  return sha256hex(pwd);
+}
